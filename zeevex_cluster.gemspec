@@ -10,7 +10,7 @@ Gem::Specification.new do |s|
   s.email       = ["robert@zeevex.com"]
   s.homepage    = "http://github.com/zeevex/zeevex_cluster"
   s.summary     = %q{Use a shared service to reliably elect a master in a cluster of processes.}
-  s.description = %q{Using a shared data storage service like MySQL, Memcache, etc., one process of many can be elected a cluster master.}
+  s.description = %q{Using a shared data storage service like MySQL, Memcache, Redis etc., one process of many can be elected a cluster master.}
 
   s.rubyforge_project = "zeevex_cluster"
 
@@ -21,4 +21,8 @@ Gem::Specification.new do |s|
 
   s.add_development_dependency 'rspec', '~> 2.9.0'
   s.add_development_dependency 'rake'
+
+  s.add_development_dependency 'memcache-client', '> 1.7.0'
+  s.add_development_dependency 'redis'
+  s.add_development_dependency 'mysql2'
 end

@@ -1,5 +1,13 @@
 module ZeevexCluster
-  class Unclustered < Base
+  class Static < Base
+    def initialize(options = {})
+      super
+      raise ArgumentError, "Must supply :master_nodename" unless @options[:master_nodename]
+      if @options[:master_nodename] == :self
+        @options[:master_nodename] = nodename
+      end
+    end
+
     ##
     ## joining is a no-op for ol' singleton here
     ##
@@ -15,16 +23,17 @@ module ZeevexCluster
     end
 
     ##
-    ## We're unclustered, so we're always the master
+    ## Are we the chosen one?
     ##
     def master?
-      true
+      nodename == options[:master_nodename]
     end
 
     ##
-    ## Make this node the master, returning true if successful. No-op for now.
+    ## Nobody can change the master
     ##
     def make_master!
+      raise ClusterActionFailed, "Can not change master" unless master?
       true
     end
 
@@ -44,7 +53,7 @@ module ZeevexCluster
     ## Return name of master node
     ##
     def master
-      nodename
+      options[:master_nodename]
     end
 
   end

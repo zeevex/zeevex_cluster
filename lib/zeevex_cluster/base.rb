@@ -1,9 +1,19 @@
+require 'socket'
+
 module ZeevexCluster
   class Base
     attr_accessor :nodename, :options
 
     def initialize(options = {})
       @options = {:nodename => Socket.gethostname}.merge(options)
+    end
+
+    def join
+      raise NotImplementedError
+    end
+
+    def leave
+      raise NotImplementedError
     end
 
     def master?
