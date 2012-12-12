@@ -40,6 +40,10 @@ class ZeevexCluster::Strategy::Cas
     @my_cluster_status == :master
   end
 
+  def do_i_hold_lock?
+    @my_cluster_status == :master || @my_cluster_status == :master_elect
+  end
+
   def master_node
     @current_master
   end
@@ -156,10 +160,21 @@ class ZeevexCluster::Strategy::Cas
       end
     end
   ensure
+    ignoring_connection_error { resign } if do_i_hold_lock?
+
     @state = :stopped
     run_hook :left_cluster, cluster_name
     change_cluster_status :offline
     run_hook :stopped
+  end
+
+  def ignoring_connection_error
+    begin
+      yield
+    rescue ZeevexCluster::Coordinator::ConnectionError
+      logger.debug 'got connection error in ignoring_connection_error'
+      $!
+    end
   end
 
   def connection_error
