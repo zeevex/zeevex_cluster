@@ -119,10 +119,11 @@ class ZeevexCluster::Strategy::Cas
   end
 
   def my_token
+    now = Time.now
     {:nodename    => nodename,
      :joined_at   => @start_time,
-     :locked_at   => @locked_at,
-     :timestamp   => Time.now}
+     :locked_at   => @locked_at || now,
+     :timestamp   => now}
   end
 
   def key
@@ -157,7 +158,7 @@ class ZeevexCluster::Strategy::Cas
       end
       @current_master  = token
     else
-      change_my_status :incoming
+      change_my_status :master_elect
       run_hook :waiting_for_inauguration
       @current_master  = nil
     end
@@ -214,7 +215,6 @@ class ZeevexCluster::Strategy::Cas
     # we're refreshing cas(old, new)
     res = server.cas(key) do |val|
       if is_me?(val)
-        logger.debug "CAS: refreshing!"
         me
       else
         logger.debug "CAS: I ain't no fortunate son"
@@ -231,7 +231,7 @@ class ZeevexCluster::Strategy::Cas
     res = server.cas(key) do |val|
       current = val
       if token_invalid?(val)
-        logger.info "CAS: master invalid, stealing"
+        logger.info "CAS: master invalid, stealing: #{val.inspect}"
         hook = :deposed_master
         me
       else
