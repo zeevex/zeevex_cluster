@@ -41,10 +41,12 @@ module ZeevexCluster::Coordinator
     # returns true for success
     #
     def cas(key, options = {}, &block)
-      case @client.cas(to_key(key), options.fetch(:expiration, @expiration), &block)
+      res = @client.cas(to_key(key), options.fetch(:expiration, @expiration), &block)
+      puts "client cas is #{res.inspect}"
+      case res
         when nil then nil
-        when 'EXISTS' then false
-        when 'STORED' then true
+        when "EXISTS\r\n", "EXISTS" then false
+        when "STORED\r\n", "STORED" then true
       end
     rescue ZeevexCluster::Coordinator::DontChange => e
       false
