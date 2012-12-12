@@ -2,6 +2,10 @@ require File.join(File.dirname(__FILE__), 'spec_helper')
 
 describe ZeevexCluster::Unclustered do
   context 'creation' do
+    it 'does not require any options' do
+      expect { ZeevexCluster::Unclustered.new }.not_to raise_error(ArgumentError)
+    end
+
     it 'accepts a specified nodename for self' do
       ZeevexCluster::Unclustered.new(:nodename => 'foobar').
           nodename.should == 'foobar'
@@ -12,15 +16,17 @@ describe ZeevexCluster::Unclustered do
           nodename.should == Socket.gethostname
     end
 
-    it 'treats master nodename == :self as our own nodename' do
-      ZeevexCluster::Unclustered.new(:nodename => 'foo', :master_nodename => :self).
-          master.should == 'foo'
+    it 'does not accept master nodename option' do
+      expect { ZeevexCluster::Unclustered.new(:master_nodename => "foo") }.
+          to raise_error(ArgumentError)
+    end
+
+    it 'should be subclass of Static cluster type' do
+      ZeevexCluster::Unclustered.new.should be_a(ZeevexCluster::Static)
+    end
+
+    it 'should be master' do
+      ZeevexCluster::Unclustered.new.master?.should be_true
     end
   end
-
-  context 'as sole lord and master' do
-    subject { ZeevexCluster::Unclustered.new }
-    it_should_behave_like 'master_node'
-  end
-
 end
