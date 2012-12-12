@@ -6,20 +6,27 @@ module ZeevexCluster
       if @options[:master_nodename] == :self
         @options[:master_nodename] = nodename
       end
+      @member = false
+      after_initialize
     end
 
     ##
     ## joining is a no-op for ol' singleton here
     ##
     def join
-      true
+      @member = true
     end
 
     ##
     ## leaving, too
     ##
     def leave
+      @member = false
       true
+    end
+
+    def member?
+      !! @member
     end
 
     ##

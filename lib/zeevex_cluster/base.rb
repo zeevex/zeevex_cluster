@@ -5,7 +5,8 @@ module ZeevexCluster
     attr_accessor :nodename, :options
 
     def initialize(options = {})
-      @options = {:nodename => Socket.gethostname}.merge(options)
+      @options = {:nodename => Socket.gethostname,
+                  :autojoin => true}.merge(options)
     end
 
     def join
@@ -17,6 +18,10 @@ module ZeevexCluster
     end
 
     def master?
+      raise NotImplementedError
+    end
+
+    def member?
       raise NotImplementedError
     end
 
@@ -68,6 +73,12 @@ module ZeevexCluster
     ##
     def nodename
       options[:nodename]
+    end
+
+    protected
+
+    def after_initialize
+      join if options.fetch(:autojoin, true)
     end
   end
 end

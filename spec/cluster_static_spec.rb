@@ -1,6 +1,10 @@
 require File.join(File.dirname(__FILE__), 'spec_helper')
 
 describe ZeevexCluster::Static do
+  def new_cluster(options = {})
+    ZeevexCluster::Static.new({:master_nodename => :self}.merge(options))
+  end
+
   context 'creation' do
     it 'requires the specification of a master nodename' do
       expect { ZeevexCluster::Static.new }.to raise_error(ArgumentError)
@@ -31,4 +35,6 @@ describe ZeevexCluster::Static do
     subject { ZeevexCluster::Static.new(:nodename => 'foo', :master_nodename => 'bar') }
     it_should_behave_like 'non_master_node'
   end
+
+  it_should_behave_like 'member_node'
 end
