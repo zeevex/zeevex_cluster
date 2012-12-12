@@ -3,12 +3,17 @@ require 'socket'
 module ZeevexCluster
   class Base
     include ZeevexCluster::Util
+    include ZeevexCluster::Hooks
 
     attr_accessor :nodename, :options
 
     def initialize(options = {})
       @options = {:nodename => Socket.gethostname,
                   :autojoin => true}.merge(options)
+      @logger  = @options[:logger]
+      if @options[:hooks]
+        add_hooks @options[:hooks]
+      end
     end
 
     def join

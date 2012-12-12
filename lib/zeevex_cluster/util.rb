@@ -18,7 +18,7 @@ module ZeevexCluster
     end
 
     def add_hook(hook_name, observer)
-      @hooks ||= []
+      @hooks ||= {}
       @hooks[hook_name] ||= []
       @hooks[hook_name] << observer
     end
@@ -30,12 +30,13 @@ module ZeevexCluster
     def add_hooks(hookmap)
       hookmap.each do |(name, val)|
         Array(val).each do |hook|
-          add_hook name, hook
+          add_hook name.to_sym, hook
         end
       end
     end
 
     def run_hook(hook_name, *args)
+      hook_name = hook_name.to_sym
       logger.debug "<running hook #{hook_name}(#{args.inspect})>"
       if @hooks[hook_name]
         Array(@hooks[hook_name]).each do |hook|
@@ -43,7 +44,7 @@ module ZeevexCluster
         end
       end
       Array(@hook_observers).each do |observer|
-        observer.call(hook_name, *args)
+        observer.call(hook_name, self, *args)
       end
     end
   end

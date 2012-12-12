@@ -7,7 +7,12 @@ module ZeevexCluster
       super
       raise ArgumentError, 'Must specify :cluster_name' unless options[:cluster_name]
 
+      if options[:hooks]
+        add_hooks(options[:hooks])
+      end
+
       @strategy = ZeevexCluster::Strategy::Cas.new({:nodename => Socket.gethostname}.merge(options))
+      @strategy.add_hook_observer Proc.new { |*args| hook_observer(*args) }
 
       after_initialize
     end
@@ -68,6 +73,19 @@ module ZeevexCluster
 
     def member?
       @member
+    end
+
+    def hook_observer(hook_name, source, *args)
+      logger.debug "#{self.class} observed hook: #{hook_name} #{args.inspect}"
+      case hook_name
+        when :status_change
+          run_hook :status_change, args[0], args[1]
+        when :cluster_status_change
+          run_hook :cluster_status_change, args[0], args[1]
+        else
+          run_hook "strategy_#{hook_name}".to_sym, *args
+          nil
+      end
     end
   end
 end
