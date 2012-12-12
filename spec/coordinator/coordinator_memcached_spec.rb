@@ -2,6 +2,9 @@ require File.join(File.dirname(__FILE__), '../spec_helper')
 require 'zeevex_cluster/coordinator/memcached.rb'
 
 describe ZeevexCluster::Coordinator::Memcached do
+  STORED = "STORED\r\n"
+  EXISTS = "EXISTS\r\n"
+  
   let :mockery do
     mock()
   end
@@ -32,11 +35,11 @@ describe ZeevexCluster::Coordinator::Memcached do
   context 'basic methods' do
     subject { clazz.new(default_options.merge(:client => mockery)) }
     it 'handles add' do
-      mockery.should_receive(:add).with('foo:bar', 12, 30).and_return('STORED')
+      mockery.should_receive(:add).with('foo:bar', 12, 30).and_return(STORED)
       subject.add('bar', 12).should == true
     end
     it 'handles set' do
-      mockery.should_receive(:set).with('foo:bar', 13, 30).and_return('STORED')
+      mockery.should_receive(:set).with('foo:bar', 13, 30).and_return(STORED)
       subject.set('bar', 13).should == true
     end
     it 'handles get' do
@@ -85,12 +88,12 @@ describe ZeevexCluster::Coordinator::Memcached do
     end
 
     it 'return true if cas succeeded' do
-      mockery.should_receive(:cas).and_return('STORED')
+      mockery.should_receive(:cas).and_return(STORED)
       subject.cas('bar') {|val|}.should be_true
     end
 
     it 'return false if cas conflicted' do
-      mockery.should_receive(:cas).and_return('EXISTS')
+      mockery.should_receive(:cas).and_return(EXISTS)
       subject.cas('bar') {|val|}.should be_false
     end
   end
