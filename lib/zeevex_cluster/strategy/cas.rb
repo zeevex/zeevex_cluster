@@ -28,11 +28,15 @@ class ZeevexCluster::Strategy::Cas
 
 
   def am_i_master?
-    !! @my_master_token && qualifies_for_master?(@my_master_token)
+    @my_cluster_status == :master
   end
 
   def master_node
     @current_master
+  end
+
+  def master_nodename
+    @current_master && @current_master[:nodename]
   end
 
   def has_master?
@@ -102,6 +106,15 @@ class ZeevexCluster::Strategy::Cas
       end
     end
     failed_lock(my_token, nil)
+  end
+
+
+  def steal_election!
+    logger.warn "Stealing election"
+    @resign_until = nil
+    me = my_token
+    server.set(key, me)
+    got_lock(me)
   end
 
   protected
@@ -181,11 +194,17 @@ class ZeevexCluster::Strategy::Cas
   def failed_lock(me, winner)
     @locked_at       = nil
 
-    @current_master  = qualifies_for_master?(winner) ? winner : nil
+    if qualifies_for_master?(winner)
+      @current_master = winner
+      change_my_status :member
+    else
+      @current_master = nil
+    end
     run_hook :election_lost, @current_master
 
     if @my_master_token
       @my_master_token = nil
+      change_my_status :lame_duck
       run_hook :lame_duck
     end
   end
