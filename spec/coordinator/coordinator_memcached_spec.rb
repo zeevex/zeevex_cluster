@@ -47,8 +47,53 @@ describe ZeevexCluster::Coordinator::Memcached do
 
   context 'cas' do
     subject { clazz.new(default_options.merge(:client => mockery)) }
+    let :blok do
+      Proc.new do |value|
+        @block_called = true
+      end
+    end
 
-    it 'calls block with current value'
+    it 'delegates with correct arguments' do
+      mockery.should_receive(:cas).with('foo:bar', 45)
+      subject.cas('bar', :expiration => 45) {|val|}
+    end
+
+    it 'calls block with current value and receive new value' do
+      mockery.should_receive(:cas) do |key, expiration, &block|
+        block.should_not be_nil
+        block.call('yeeha').should == 'yeehayeeha'
+      end
+      subject.cas('bar', :expiration => 45) do |val|
+        @block_called = true
+        val + val
+      end
+      @block_called.should be_true
+    end
+
+    it 'allows block to abort' do
+      mockery.stub(:cas) do |*args, &block|
+        block.call 'abort!'
+      end
+      subject.cas('bar') do |val|
+        raise ZeevexCluster::Coordinator::DontChange
+      end.should == false
+    end
+
+    it 'return nil if cas failed due to no key' do
+      mockery.should_receive(:cas).and_return(nil)
+      subject.cas('bar') {|val|}.should be_nil
+    end
+
+    it 'return true if cas succeeded' do
+      mockery.should_receive(:cas).and_return('STORED')
+      subject.cas('bar') {|val|}.should be_true
+    end
+
+    it 'return false if cas conflicted' do
+      mockery.should_receive(:cas).and_return('EXISTS')
+      subject.cas('bar') {|val|}.should be_false
+    end
+
     it 'attempts to set new value'
     it 'fails if value has changed'
     it 'allows block to abort by raising exception'

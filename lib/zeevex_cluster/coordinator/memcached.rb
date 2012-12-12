@@ -40,8 +40,8 @@ module ZeevexCluster::Coordinator
     # returns false for failure (somebody else set)
     # returns true for success
     #
-    def cas(key, &block)
-      case @client.cas to_key(key), options.fetch('expiration', @expiration), &block
+    def cas(key, options = {}, &block)
+      case @client.cas(to_key(key), options.fetch(:expiration, @expiration), &block)
         when nil then nil
         when 'EXISTS' then false
         when 'STORED' then true
