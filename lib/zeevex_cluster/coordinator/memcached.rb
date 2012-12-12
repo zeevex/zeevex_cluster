@@ -32,38 +32,40 @@ module ZeevexCluster::Coordinator
     end
 
     [:add, :set, :cas, :get].each do |name|
-      define_method name, lambda { |*args, &block|
-        with_connection_retry name, *args, &block
+      define_method "#{name}_with_retry", lambda { |*args, &block|
+        with_connection_retry name, {}, *args, &block
       }
     end
 
-    protected
-
-    def with_connection_retry(method, *args, &block)
-      retry_left = @retries
-      retry_wait = @retry_wait
+    def with_connection_retry(method, options = {}, *args, &block)
+      retry_left = options.fetch(:retries, @retries)
+      retry_wait = options.fetch(:retry_wait, @retry_wait)
       begin
         send "do_#{method}", *args, &block
-      rescue MemCache::MemCacheError
+      rescue ZeevexCluster::Coordinator::ConnectionError
         if retry_left > 0
           logger.debug "retrying after #{retry_wait} seconds"
           retry_left -= 1
           sleep retry_wait
-          retry_wait = retry_wait * @retry_bo
+          retry_wait = retry_wait * options.fetch('retry_bo', @retry_bo)
           retry
         else
-          logger.error "Ran out of connection retries, re-raising"
-          raise ZeevexCluster::Coordinator::ConnectionError.new('Could not connect to server', $!)
+          logger.error 'Ran out of connection retries, re-raising'
+          raise
         end
       end
     end
 
-    def do_add(key, value, options = {})
+    def add(key, value, options = {})
       @client.add(to_key(key), value, options.fetch(:expiration, @expiration)).chomp == 'STORED'
+    rescue MemCache::MemCacheError
+      raise ZeevexCluster::Coordinator::ConnectionError.new "Connection error", $!
     end
 
-    def do_set(key, value, options = {})
+    def set(key, value, options = {})
       @client.set(to_key(key), value, options.fetch(:expiration, @expiration)).chomp == 'STORED'
+    rescue MemCache::MemCacheError
+      raise ZeevexCluster::Coordinator::ConnectionError.new "Connection error", $!
     end
 
     #
@@ -75,7 +77,7 @@ module ZeevexCluster::Coordinator
     # returns false for failure (somebody else set)
     # returns true for success
     #
-    def do_cas(key, options = {}, &block)
+    def cas(key, options = {}, &block)
       res = @client.cas(to_key(key), options.fetch(:expiration, @expiration), &block)
       case res
         when nil then nil
@@ -84,11 +86,17 @@ module ZeevexCluster::Coordinator
       end
     rescue ZeevexCluster::Coordinator::DontChange => e
       false
+    rescue MemCache::MemCacheError
+      raise ZeevexCluster::Coordinator::ConnectionError.new "Connection error", $!
     end
 
-    def do_get(key)
+    def get(key)
       @client.get(to_key key)
+    rescue MemCache::MemCacheError
+      raise ZeevexCluster::Coordinator::ConnectionError.new "Connection error", $!
     end
+
+    protected
 
     def to_key(key)
       if @options[:namespace]

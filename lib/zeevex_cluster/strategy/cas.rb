@@ -113,6 +113,8 @@ class ZeevexCluster::Strategy::Cas
       end
       failed_lock(my_token, current)
     end
+  rescue ZeevexCluster::Coordinator::ConnectionError
+    failed_lock(my_token, nil)
   end
 
 
@@ -122,6 +124,9 @@ class ZeevexCluster::Strategy::Cas
     me = my_token
     server.set(key, me)
     got_lock(me)
+    true
+  rescue ZeevexCluster::Coordinator::ConnectionError
+    false
   end
 
   protected
@@ -132,13 +137,17 @@ class ZeevexCluster::Strategy::Cas
     run_hook :started
     run_hook :joined_cluster, cluster_name
     while @state == :started
-      campaign
-      if @state == :started
-        begin
-          sleep [@update_period - 1, 1].max
-        rescue StopException
-          logger.debug 'Stopping on stop exception'
+      begin
+        campaign
+        if @state == :started
+          begin
+            sleep [@update_period - 1, 1].max
+          rescue StopException
+            logger.debug 'Stopping on stop exception'
+          end
         end
+      rescue ZeevexCluster::Coordinator::ConnectionError
+        run_hook :connection_error
       end
     end
   ensure
@@ -308,6 +317,10 @@ class ZeevexCluster::Strategy::Cas
     end
 
     # didn't get it
+    failed_lock(me, current)
+    false
+  rescue ZeevexCluster::Coordinator::ConnectionError
+    run_hook :connection_error
     failed_lock(me, current)
     false
   end
