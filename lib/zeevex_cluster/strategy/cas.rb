@@ -1,7 +1,10 @@
 require 'zeevex_cluster/coordinator/memcached'
 require 'socket'
+require 'logger'
 
 class ZeevexCluster::Strategy::Cas
+  include ZeevexCluster::Util
+
   attr_accessor :stale_time, :update_period, :server, :nodename, :cluster_name
 
   def initialize(options = {})
@@ -11,6 +14,8 @@ class ZeevexCluster::Strategy::Cas
     @stale_time    = options.fetch(:stale_time, 40)
     @update_period = options.fetch(:update_period, 10)
     @hooks         = options[:hooks] || {}
+    @logger        = options[:logger]
+
     @state         = :stopped
 
     reset_state_vars
@@ -23,7 +28,7 @@ class ZeevexCluster::Strategy::Cas
 
 
   def am_i_master?
-    !! @my_master_token
+    !! @my_master_token && qualifies_for_master?(@my_master_token)
   end
 
   def master_node
@@ -53,11 +58,12 @@ class ZeevexCluster::Strategy::Cas
     @locked_at = nil
     @thread = Thread.new do
       begin
+        change_my_status :member
         spin
       rescue
-        puts "rescued from spin: #{$!.inspect}\n#{$!.backtrace.join("\n")}"
+        logger.warn "rescued from spin: #{$!.inspect}\n#{$!.backtrace.join("\n")}"
       ensure
-        puts "spin over"
+        logger.debug "spin over"
         @state = :stopped
       end
     end
@@ -74,6 +80,7 @@ class ZeevexCluster::Strategy::Cas
     end
     @thread.join
     @thread = nil
+    change_my_status :nonmember
     reset_state_vars
   end
 
@@ -93,17 +100,17 @@ class ZeevexCluster::Strategy::Cas
   protected
 
   def run_hook(hook_name, *args)
+    logger.debug "<running hook #{hook_name}(#{args.inspect})>"
     if @hooks[hook_name]
       @hooks[hook_name].call(self, *args)
     end
   end
 
   def spin
-    puts "spinning"
+    logger.debug "spin started"
     @state = :started
     run_hook :started
     while @state == :started
-      puts "campaining!"
       campaign
       sleep [@update_period - 1, 1].max if @state == :started
     end
@@ -126,31 +133,46 @@ class ZeevexCluster::Strategy::Cas
     token && token.is_a?(Hash) && token[:nodename] == nodename
   end
 
+  def change_my_status(status, attrs = {})
+    return if status == @my_cluster_status
+
+    old_status = @my_cluster_status
+    @my_cluster_status = status
+    run_hook :status_change, status, old_status, attrs
+  end
+
   def got_lock(token)
     unless @locked_at
       @locked_at     = token[:timestamp]
-      new_token      = my_token
-
-      token          = new_token
+      token          = my_token
+      run_hook :election_won
     end
     @my_master_token = token
     if qualifies_for_master?(token)
+      change_my_status :master
       if @current_master && is_me?(@current_master)
         run_hook :reelected
       else
-        run_hook :election_won
+        run_hook :became_master
       end
       @current_master  = token
     else
+      change_my_status :incoming
+      run_hook :waiting_for_inauguration
       @current_master  = nil
     end
   end
 
   def failed_lock(me, winner)
-    @my_master_token = nil
     @locked_at       = nil
+
     @current_master  = qualifies_for_master?(winner) ? winner : nil
     run_hook :election_lost, @current_master
+
+    if @my_master_token
+      @my_master_token = nil
+      run_hook :lame_duck
+    end
   end
 
   #
@@ -160,7 +182,6 @@ class ZeevexCluster::Strategy::Cas
   def qualifies_for_master?(token)
     now = Time.now
     ! token_invalid?(token) and
-        token[:locked_at] and
         token[:timestamp] > (now - @stale_time) and
         token[:locked_at] <= (now - 2 * @update_period)
   end
@@ -168,18 +189,24 @@ class ZeevexCluster::Strategy::Cas
   def token_invalid?(token)
     now = Time.now
     !token || !token.is_a?(Hash) || !token[:timestamp] ||
+        ! token[:locked_at] || ! token[:nodename] ||
         token[:timestamp] < (now - @stale_time)
+  end
+
+  # TODO: make this work
+  def steal_election
+    false
   end
 
   def campaign
     if @resign_until && @resign_until > Time.now
-      puts "resigned..."
+      run_hook :staying_resigned
       return
     end
     @resign_until = nil
     me = my_token
     if server.add(key, me)
-      puts "CAS: added!"
+      logger.debug "CAS: added!"
       got_lock(me)
       return true
     end
@@ -187,32 +214,36 @@ class ZeevexCluster::Strategy::Cas
     # we're refreshing cas(old, new)
     res = server.cas(key) do |val|
       if is_me?(val)
-        puts "CAS: refreshing!"
+        logger.debug "CAS: refreshing!"
         me
       else
-        puts "CAS: wasn't me"
+        logger.debug "CAS: I ain't no fortunate son"
         raise ZeevexCluster::Coordinator::DontChange
       end
     end
-    puts "res1 was #{res.inspect}"
     if res
       got_lock(me)
       return true
     end
 
     current = nil
+    hook = nil
     res = server.cas(key) do |val|
       current = val
       if token_invalid?(val)
-        puts "CAS: master invalid, stealing"
+        logger.info "CAS: master invalid, stealing"
+        hook = :deposed_master
         me
       else
-        puts "CAS: master valid for #{@stale_time - (Time.now - val[:timestamp])} more seconds" if
+        logger.debug "CAS: other master valid for #{@stale_time - (Time.now - val[:timestamp])} more seconds" if
           val && val.is_a?(Hash)
         raise ZeevexCluster::Coordinator::DontChange
       end
     end
-    puts "res2 was #{res.inspect}"
+
+    # it's important to run this outside of the CAS block
+    run_hook hook if hook
+
     if res
       got_lock(me)
       return true
@@ -230,5 +261,6 @@ class ZeevexCluster::Strategy::Cas
     @current_master = nil
     @state = :stopped
     @thread = nil
+    @my_cluster_status = :nonmember
   end
 end

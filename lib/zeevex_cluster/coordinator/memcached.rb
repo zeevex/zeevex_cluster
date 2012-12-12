@@ -1,5 +1,7 @@
 module ZeevexCluster::Coordinator
   class Memcached
+    include ZeevexCluster::Util
+
     def self.setup
       unless @setup
         require 'memcache'
@@ -22,6 +24,8 @@ module ZeevexCluster::Coordinator
       end
       @expiration = options[:expiration] || 60
 
+      @logger     = options[:logger]
+
       @retries    = options.fetch(:retries,    20)
       @retry_wait = options.fetch(:retry_wait,  2)
       @retry_bo   = options.fetch(:retry_bo,    1.5)
@@ -42,12 +46,13 @@ module ZeevexCluster::Coordinator
         send "do_#{method}", *args, &block
       rescue MemCache::MemCacheError
         if retry_left > 0
+          logger.debug "retrying after #{retry_wait} seconds"
           retry_left -= 1
-          puts 'sleeping...'
           sleep retry_wait
           retry_wait = retry_wait * @retry_bo
           retry
         else
+          logger.error "Ran out of connection retries, re-raising"
           raise ZeevexCluster::Coordinator::ConnectionError.new('Could not connect to server', $!)
         end
       end
@@ -72,7 +77,6 @@ module ZeevexCluster::Coordinator
     #
     def do_cas(key, options = {}, &block)
       res = @client.cas(to_key(key), options.fetch(:expiration, @expiration), &block)
-      puts "client cas is #{res.inspect}"
       case res
         when nil then nil
         when "EXISTS\r\n", "EXISTS" then false

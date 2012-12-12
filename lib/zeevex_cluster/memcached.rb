@@ -20,8 +20,13 @@ module ZeevexCluster
     ## Make this node the master, returning true if successful. No-op for now.
     ##
     def make_master!
-      raise ClusterActionFailed, "Can not change master" unless master?
-      raise AlreadyMaster, "This node is already the master" if master?
+      #raise ClusterActionFailed, "Can not change master" unless master?
+      #raise AlreadyMaster, "This node is already the master" if master?
+      if @strategy.steal_election!
+        true
+      else
+        false
+      end
     end
 
     ##

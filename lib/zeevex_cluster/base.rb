@@ -2,6 +2,8 @@ require 'socket'
 
 module ZeevexCluster
   class Base
+    include ZeevexCluster::Util
+
     attr_accessor :nodename, :options
 
     def initialize(options = {})
