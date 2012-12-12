@@ -21,13 +21,43 @@ module ZeevexCluster::Coordinator
         @client = MemCache.new "#{@server}:#{@port}"
       end
       @expiration = options[:expiration] || 60
+
+      @retries    = options.fetch(:retries,    20)
+      @retry_wait = options.fetch(:retry_wait,  2)
+      @retry_bo   = options.fetch(:retry_bo,    1.5)
     end
 
-    def add(key, value, options = {})
+    [:add, :set, :cas, :get].each do |name|
+      define_method name, lambda { |*args, &block|
+        with_connection_retry name, *args, &block
+      }
+    end
+
+    protected
+
+    def with_connection_retry(method, *args, &block)
+      retry_left = @retries
+      retry_wait = @retry_wait
+      begin
+        send "do_#{method}", *args, &block
+      rescue MemCache::MemCacheError
+        if retry_left > 0
+          retry_left -= 1
+          puts 'sleeping...'
+          sleep retry_wait
+          retry_wait = retry_wait * @retry_bo
+          retry
+        else
+          raise ZeevexCluster::Coordinator::ConnectionError.new('Could not connect to server', $!)
+        end
+      end
+    end
+
+    def do_add(key, value, options = {})
       @client.add(to_key(key), value, options.fetch(:expiration, @expiration)) == 'STORED'
     end
 
-    def set(key, value, options = {})
+    def do_set(key, value, options = {})
       @client.set(to_key(key), value, options.fetch(:expiration, @expiration)) == 'STORED'
     end
 
@@ -40,7 +70,7 @@ module ZeevexCluster::Coordinator
     # returns false for failure (somebody else set)
     # returns true for success
     #
-    def cas(key, options = {}, &block)
+    def do_cas(key, options = {}, &block)
       res = @client.cas(to_key(key), options.fetch(:expiration, @expiration), &block)
       puts "client cas is #{res.inspect}"
       case res
@@ -52,11 +82,9 @@ module ZeevexCluster::Coordinator
       false
     end
 
-    def get(key)
+    def do_get(key)
       @client.get(to_key key)
     end
-
-    protected
 
     def to_key(key)
       if @options[:namespace]
