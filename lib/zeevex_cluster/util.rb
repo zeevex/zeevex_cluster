@@ -23,6 +23,18 @@ module ZeevexCluster
       @hooks[hook_name] << observer
     end
 
+    #
+    # Takes a hash of hook_name_symbol => hooklist
+    # hooklist can be a single proc or array of procs
+    #
+    def add_hooks(hookmap)
+      hookmap.each do |(name, val)|
+        Array(val).each do |hook|
+          add_hook name, hook
+        end
+      end
+    end
+
     def run_hook(hook_name, *args)
       logger.debug "<running hook #{hook_name}(#{args.inspect})>"
       if @hooks[hook_name]

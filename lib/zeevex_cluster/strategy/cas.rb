@@ -17,7 +17,7 @@ class ZeevexCluster::Strategy::Cas
     @nodename      = options[:nodename] || Socket.gethostname
     @stale_time    = options.fetch(:stale_time, 40)
     @update_period = options.fetch(:update_period, 10)
-    @hooks         = options[:hooks] || {}
+    @hooks         = {}
     @logger        = options[:logger]
 
     @state         = :stopped
@@ -28,6 +28,11 @@ class ZeevexCluster::Strategy::Cas
         ZeevexCluster::Coordinator::Memcached.new(:server     => options[:server],
                                                   :port       => options[:port],
                                                   :expiration => @stale_time)
+
+
+    if options[:hooks]
+      add_hooks options[:hooks]
+    end
   end
 
 
