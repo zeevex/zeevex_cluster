@@ -102,14 +102,16 @@ class ZeevexCluster::Strategy::Cas
       campaign
     else
       @resign_until = Time.now + (delay || [@update_period*6, @stale_time].min)
+      current = nil
       server.cas(key) do |val|
+        current = val
         if is_me?(val)
           my_token.merge(:timestamp => Time.now - 2*@stale_time)
         else
           raise ZeevexCluster::Coordinator::DontChange
         end
       end
-      failed_lock(my_token, nil)
+      failed_lock(my_token, current)
     end
   end
 
@@ -247,23 +249,23 @@ class ZeevexCluster::Strategy::Cas
     false
   end
 
+  def resigned?
+    @resign_until && @resign_until > Time.now
+  end
+
   def campaign
     me = my_token
 
-    if @resign_until && @resign_until > Time.now
-      run_hook :staying_resigned
-      failed_lock(me, nil)
-      return
-    end
-    @resign_until = nil
+    act_resigned = resigned?
+    compete_for_token = !act_resigned
 
     hook = nil
     current = nil
     res = server.cas(key) do |val|
       current = val
-      if is_me?(val) && !token_invalid?(val)
+      if is_me?(val) && !token_invalid?(val) && compete_for_token
         me
-      elsif token_invalid?(val)
+      elsif token_invalid?(val) && compete_for_token
         if is_me?(val)
           logger.info "My old token is invalid, refreshing: #{val.inspect}"
         else
@@ -278,6 +280,14 @@ class ZeevexCluster::Strategy::Cas
         run_hook :suspect_master if master_suspect?(val)
         raise ZeevexCluster::Coordinator::DontChange
       end
+    end
+
+    if act_resigned
+      run_hook :staying_resigned
+      failed_lock(me, current)
+      return
+    else
+      @resign_until = nil
     end
 
     if res
