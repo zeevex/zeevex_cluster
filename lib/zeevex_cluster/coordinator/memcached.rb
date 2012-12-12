@@ -59,11 +59,11 @@ module ZeevexCluster::Coordinator
     end
 
     def do_add(key, value, options = {})
-      @client.add(to_key(key), value, options.fetch(:expiration, @expiration)) == 'STORED'
+      @client.add(to_key(key), value, options.fetch(:expiration, @expiration)).chomp == 'STORED'
     end
 
     def do_set(key, value, options = {})
-      @client.set(to_key(key), value, options.fetch(:expiration, @expiration)) == 'STORED'
+      @client.set(to_key(key), value, options.fetch(:expiration, @expiration)).chomp == 'STORED'
     end
 
     #

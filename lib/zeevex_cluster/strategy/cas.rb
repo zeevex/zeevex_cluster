@@ -130,6 +130,7 @@ class ZeevexCluster::Strategy::Cas
     logger.debug "spin started"
     @state = :started
     run_hook :started
+    run_hook :joined_cluster, cluster_name
     while @state == :started
       campaign
       if @state == :started
@@ -142,6 +143,7 @@ class ZeevexCluster::Strategy::Cas
     end
   ensure
     @state = :stopped
+    run_hook :left_cluster, cluster_name
     run_hook :stopped
   end
 
@@ -239,11 +241,6 @@ class ZeevexCluster::Strategy::Cas
     end
     @resign_until = nil
     me = my_token
-    if server.add(key, me)
-      logger.debug "CAS: added!"
-      got_lock(me)
-      return true
-    end
 
     # we're refreshing cas(old, new)
     res = server.cas(key) do |val|
@@ -254,9 +251,16 @@ class ZeevexCluster::Strategy::Cas
         raise ZeevexCluster::Coordinator::DontChange
       end
     end
+
     if res
       got_lock(me)
       return true
+    elsif res == nil
+      if server.add(key, me)
+        logger.debug 'CAS: added frist post!'
+        got_lock(me)
+        return true
+      end
     end
 
     current = nil
