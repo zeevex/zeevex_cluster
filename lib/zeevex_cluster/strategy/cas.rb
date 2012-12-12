@@ -99,17 +99,18 @@ class ZeevexCluster::Strategy::Cas
     # unresign
     if delay == 0
       @resign_until = nil
-    end
-    return unless @my_cluster_status == :master || @my_cluster_status == :master_elect
-    server.cas(key) do |val|
-      if is_me?(val)
-        @resign_until = Time.now + (delay || [@update_period*6, @stale_time].min)
-        my_token.merge(:timestamp => Time.now - 2*@stale_time)
-      else
-        raise ZeevexCluster::Coordinator::DontChange
+      campaign
+    else
+      @resign_until = Time.now + (delay || [@update_period*6, @stale_time].min)
+      server.cas(key) do |val|
+        if is_me?(val)
+          my_token.merge(:timestamp => Time.now - 2*@stale_time)
+        else
+          raise ZeevexCluster::Coordinator::DontChange
+        end
       end
+      failed_lock(my_token, nil)
     end
-    failed_lock(my_token, nil)
   end
 
 
@@ -219,7 +220,7 @@ class ZeevexCluster::Strategy::Cas
       @my_master_token = nil
       change_my_status :lame_duck
       run_hook :lame_duck
-    elsif @my_cluster_status == :master_elect
+    else
       change_my_status :member
     end
   end
@@ -247,16 +248,18 @@ class ZeevexCluster::Strategy::Cas
   end
 
   def campaign
+    me = my_token
+
     if @resign_until && @resign_until > Time.now
       run_hook :staying_resigned
+      failed_lock(me, nil)
       return
     end
     @resign_until = nil
-    me = my_token
 
     # we're refreshing cas(old, new)
     res = server.cas(key) do |val|
-      if is_me?(val)
+      if !token_invalid?(val) && is_me?(val)
         me
       else
         logger.debug "CAS: I ain't no fortunate son"
