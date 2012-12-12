@@ -302,7 +302,7 @@ class ZeevexCluster::Strategy::Cas
         end
         me
       else
-        run_hook :suspect_master if master_suspect?(val)
+        run_hook :suspect_master if @master_status != :none && master_suspect?(val)
         raise ZeevexCluster::Coordinator::DontChange
       end
     end
