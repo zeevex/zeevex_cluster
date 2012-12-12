@@ -147,13 +147,19 @@ class ZeevexCluster::Strategy::Cas
           end
         end
       rescue ZeevexCluster::Coordinator::ConnectionError
-        run_hook :connection_error
+        connection_error
       end
     end
   ensure
     @state = :stopped
     run_hook :left_cluster, cluster_name
+    change_cluster_status :offline
     run_hook :stopped
+  end
+
+  def connection_error
+    run_hook :connection_error
+    change_cluster_status :offline
   end
 
   def my_token
@@ -185,6 +191,13 @@ class ZeevexCluster::Strategy::Cas
 
     old_status, @master_status = @master_status, status
     run_hook :master_status_change, status, old_status, attrs
+  end
+
+  def change_cluster_status(status, attrs = {})
+    return if status == @cluster_status
+
+    old_status, @cluster_status = @cluster_status, status
+    run_hook :cluster_status_change, status, old_status, attrs
   end
 
   def got_lock(token)
@@ -284,12 +297,13 @@ class ZeevexCluster::Strategy::Cas
         end
         me
       else
-        logger.debug "CAS: other master valid for #{@stale_time - (Time.now - val[:timestamp])} more seconds" if
-            val && val.is_a?(Hash)
         run_hook :suspect_master if master_suspect?(val)
         raise ZeevexCluster::Coordinator::DontChange
       end
     end
+
+    # if we got a result, we must be online
+    change_cluster_status :online
 
     if act_resigned
       run_hook :staying_resigned
@@ -320,7 +334,7 @@ class ZeevexCluster::Strategy::Cas
     failed_lock(me, current)
     false
   rescue ZeevexCluster::Coordinator::ConnectionError
-    run_hook :connection_error
+    connection_error
     failed_lock(me, current)
     false
   end
@@ -340,5 +354,6 @@ class ZeevexCluster::Strategy::Cas
     @thread = nil
     @my_cluster_status = :nonmember
     @master_status = :none
+    @cluster_status = :offline
   end
 end
