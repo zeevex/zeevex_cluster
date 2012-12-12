@@ -33,7 +33,7 @@ module ZeevexCluster
     ## Are we the chosen one?
     ##
     def master?
-      nodename == options[:master_nodename]
+      member? && nodename == options[:master_nodename]
     end
 
     ##

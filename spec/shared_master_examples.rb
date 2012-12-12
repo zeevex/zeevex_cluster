@@ -8,4 +8,13 @@ shared_examples_for 'master_node' do
       :ran
     end.should == :ran
   end
+  it 'should no longer be master after leaving' do
+    expect { subject.leave }.
+        to change { subject.master? }.
+        from(true).to(false)
+  end
+  #it 'should resign before leaving the cluster' do
+  #  subject.should_receive(:resign!).and_return(true)
+  #  subject.leave
+  #end
 end
