@@ -36,7 +36,14 @@ module ZeevexCluster
     ##
     def resign!(delay = nil)
       @strategy.resign delay
-      @strategy.stop if @strategy.started? && delay == nil
+      ## FIXME: is this a good idea?
+      # @strategy.stop if @strategy.started? && delay == nil
+    end
+
+    def campaign!
+      @strategy.start unless @strategy.started?
+      # stop sitting out the election
+      @strategy.resign 0
     end
 
     ##

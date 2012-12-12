@@ -70,7 +70,7 @@ describe ZeevexCluster::Coordinator::Memcached do
       @block_called.should be_true
     end
 
-    it 'allows block to abort' do
+    it 'allows block to abort with no change to value' do
       mockery.stub(:cas) do |*args, &block|
         block.call 'abort!'
       end
@@ -93,9 +93,5 @@ describe ZeevexCluster::Coordinator::Memcached do
       mockery.should_receive(:cas).and_return('EXISTS')
       subject.cas('bar') {|val|}.should be_false
     end
-
-    it 'attempts to set new value'
-    it 'fails if value has changed'
-    it 'allows block to abort by raising exception'
   end
 end

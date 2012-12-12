@@ -51,6 +51,8 @@ class ZeevexCluster::Strategy::Cas
     @state == :stopped
   end
 
+  class StopException < StandardError; end
+
   def start
     raise "Already started" if @thread || @state == :started
     @start_time = Time.now
@@ -75,6 +77,7 @@ class ZeevexCluster::Strategy::Cas
       when :stopped
       when :started
         @state = :stop_requested
+        @thread.raise(StopException.new 'stop')
       else
         raise "Bad state: #{@state}"
     end
@@ -85,6 +88,10 @@ class ZeevexCluster::Strategy::Cas
   end
 
   def resign(delay = nil)
+    # unresign
+    if delay == 0
+      @resign_until = nil
+    end
     return if !am_i_master?
     server.cas(key) do |val|
       if is_me?(val)
@@ -112,8 +119,15 @@ class ZeevexCluster::Strategy::Cas
     run_hook :started
     while @state == :started
       campaign
-      sleep [@update_period - 1, 1].max if @state == :started
+      if @state == :started
+        begin
+          sleep [@update_period - 1, 1].max
+        rescue StopException
+          logger.debug 'Stopping on stop exception'
+        end
+      end
     end
+  ensure
     @state = :stopped
     run_hook :stopped
   end
