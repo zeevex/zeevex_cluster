@@ -27,14 +27,23 @@ describe ZeevexCluster::Static do
   end
 
   context 'when this node is specified as master' do
+    def new_cluster(options = {})
+      options[:master_nodename] = :self
+      super
+    end
     subject { ZeevexCluster::Static.new(:nodename => 'foo', :master_nodename => 'foo') }
     it_should_behave_like 'master_node'
+    it_should_behave_like 'member_node'
   end
 
   context 'when this node is not specified as master' do
+    def new_cluster(options = {})
+      options[:master_nodename] = 'other'
+      super
+    end
     subject { ZeevexCluster::Static.new(:nodename => 'foo', :master_nodename => 'bar') }
     it_should_behave_like 'non_master_node'
+    it_should_behave_like 'member_node'
   end
 
-  it_should_behave_like 'member_node'
 end
