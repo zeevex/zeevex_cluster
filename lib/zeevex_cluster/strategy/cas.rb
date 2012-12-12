@@ -4,6 +4,7 @@ require 'logger'
 
 class ZeevexCluster::Strategy::Cas
   include ZeevexCluster::Util
+  include ZeevexCluster::Hooks
 
   attr_accessor :stale_time, :update_period, :server, :nodename, :cluster_name
 
@@ -96,7 +97,7 @@ class ZeevexCluster::Strategy::Cas
     if delay == 0
       @resign_until = nil
     end
-    return if !am_i_master?
+    return unless @my_cluster_status == :master || @my_cluster_status == :master_elect
     server.cas(key) do |val|
       if is_me?(val)
         @resign_until = Time.now + (delay || [@update_period*6, @stale_time].min)
@@ -118,13 +119,6 @@ class ZeevexCluster::Strategy::Cas
   end
 
   protected
-
-  def run_hook(hook_name, *args)
-    logger.debug "<running hook #{hook_name}(#{args.inspect})>"
-    if @hooks[hook_name]
-      @hooks[hook_name].call(self, *args)
-    end
-  end
 
   def spin
     logger.debug "spin started"
@@ -204,10 +198,12 @@ class ZeevexCluster::Strategy::Cas
     end
     run_hook :election_lost, @current_master
 
-    if @my_master_token
+    if @my_cluster_status == :master
       @my_master_token = nil
       change_my_status :lame_duck
       run_hook :lame_duck
+    elsif @my_cluster_status == :master_elect
+      change_my_status :member
     end
   end
 
