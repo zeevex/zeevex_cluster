@@ -271,11 +271,6 @@ class ZeevexCluster::Strategy::Cas
         token[:timestamp] < (now - @stale_time)
   end
 
-  # TODO: make this work
-  def steal_election
-    false
-  end
-
   def resigned?
     @resign_until && @resign_until > Time.now
   end
