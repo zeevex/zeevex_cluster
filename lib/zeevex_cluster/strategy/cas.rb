@@ -257,17 +257,31 @@ class ZeevexCluster::Strategy::Cas
     end
     @resign_until = nil
 
-    # we're refreshing cas(old, new)
+    hook = nil
+    current = nil
     res = server.cas(key) do |val|
-      if !token_invalid?(val) && is_me?(val)
+      current = val
+      if is_me?(val) && !token_invalid?(val)
+        me
+      elsif token_invalid?(val)
+        if is_me?(val)
+          logger.info "My old token is invalid, refreshing: #{val.inspect}"
+        else
+          logger.info "CAS: master invalid, stealing: #{val.inspect}"
+          # it's necessary to run this outside of the CAS block to be sure we won
+          hook = :deposed_master
+        end
         me
       else
-        logger.debug "CAS: I ain't no fortunate son"
+        logger.debug "CAS: other master valid for #{@stale_time - (Time.now - val[:timestamp])} more seconds" if
+            val && val.is_a?(Hash)
+        run_hook :suspect_master if master_suspect?(val)
         raise ZeevexCluster::Coordinator::DontChange
       end
     end
 
     if res
+      run_hook hook if hook && res
       got_lock(me)
       return true
     elsif res == nil
@@ -277,25 +291,6 @@ class ZeevexCluster::Strategy::Cas
         return true
       end
     end
-
-    current = nil
-    hook = nil
-    res = server.cas(key) do |val|
-      current = val
-      if token_invalid?(val)
-        logger.info "CAS: master invalid, stealing: #{val.inspect}"
-        hook = :deposed_master
-        me
-      else
-        logger.debug "CAS: other master valid for #{@stale_time - (Time.now - val[:timestamp])} more seconds" if
-          val && val.is_a?(Hash)
-        hook = :suspect_master if master_suspect?(val)
-        raise ZeevexCluster::Coordinator::DontChange
-      end
-    end
-
-    # it's important to run this outside of the CAS block
-    run_hook hook if hook
 
     if res
       got_lock(me)
