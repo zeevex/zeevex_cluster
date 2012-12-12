@@ -8,6 +8,9 @@ class ZeevexCluster::Strategy::Cas
 
   attr_accessor :stale_time, :update_period, :server, :nodename, :cluster_name
 
+  SUSPECT_MISSED_UPDATE_COUNT = 3
+  INAUGURATION_UPDATE_DELAY   = 2
+
   def initialize(options = {})
     @options       = options
     @cluster_name  = options[:cluster_name]
@@ -165,6 +168,13 @@ class ZeevexCluster::Strategy::Cas
     run_hook :status_change, status, old_status, attrs
   end
 
+  def change_master_status(status, attrs = {})
+    return if status == @master_status
+
+    old_status, @master_status = @master_status, status
+    run_hook :master_status_change, status, old_status, attrs
+  end
+
   def got_lock(token)
     unless @locked_at
       @locked_at     = token[:timestamp]
@@ -179,9 +189,11 @@ class ZeevexCluster::Strategy::Cas
       else
         run_hook :became_master
       end
+      change_master_status :good
       @current_master  = token
     else
       change_my_status :master_elect
+      change_master_status :waiting_for_inauguration
       run_hook :waiting_for_inauguration
       @current_master  = nil
     end
@@ -193,8 +205,13 @@ class ZeevexCluster::Strategy::Cas
     if qualifies_for_master?(winner)
       @current_master = winner
       change_my_status :member
+      change_master_status :good
+    elsif ! token_invalid?(winner)
+      @current_master = winner
+      change_master_status :waiting_for_inauguration
     else
       @current_master = nil
+      change_master_status :none
     end
     run_hook :election_lost, @current_master
 
@@ -208,14 +225,13 @@ class ZeevexCluster::Strategy::Cas
   end
 
   #
-  # Must have held lock for 2 update periods, and been member of the cluster
-  # for 3 update periods
+  # Must have held lock for INAUGURATION_UPDATE_DELAY update periods
   #
   def qualifies_for_master?(token)
     now = Time.now
     ! token_invalid?(token) and
         token[:timestamp] > (now - @stale_time) and
-        token[:locked_at] <= (now - 2 * @update_period)
+        token[:locked_at] <= (now - INAUGURATION_UPDATE_DELAY * @update_period)
   end
 
   def token_invalid?(token)
@@ -270,6 +286,7 @@ class ZeevexCluster::Strategy::Cas
       else
         logger.debug "CAS: other master valid for #{@stale_time - (Time.now - val[:timestamp])} more seconds" if
           val && val.is_a?(Hash)
+        hook = :suspect_master if master_suspect?(val)
         raise ZeevexCluster::Coordinator::DontChange
       end
     end
@@ -287,6 +304,12 @@ class ZeevexCluster::Strategy::Cas
     false
   end
 
+  #
+  # has the master gone without updating suspiciously long?
+  #
+  def master_suspect?(token)
+    Time.now - token[:timestamp] > SUSPECT_MISSED_UPDATE_COUNT * @update_period
+  end
 
   def reset_state_vars
     @resign_until = nil
@@ -295,5 +318,6 @@ class ZeevexCluster::Strategy::Cas
     @state = :stopped
     @thread = nil
     @my_cluster_status = :nonmember
+    @master_status = :none
   end
 end
