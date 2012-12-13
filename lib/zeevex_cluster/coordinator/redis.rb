@@ -12,7 +12,6 @@ module ZeevexCluster::Coordinator
     def initialize(options = {})
       self.class.setup
       @options    = options
-      puts "options = #{options.inspect}"
       if (!options[:server] && !options[:client]) || !options[:expiration]
         raise ArgumentError, "Must supply [:server or :client] and :expiration"
       end
@@ -85,6 +84,7 @@ module ZeevexCluster::Coordinator
     #
     def cas(key, options = {})
       key = to_key(key)
+      @client.unwatch
       @client.watch key
       orig_val = @client.get key
       return nil if orig_val.nil?
@@ -99,6 +99,7 @@ module ZeevexCluster::Coordinator
           @client.set key, newval
         end
       end
+      @client.unwatch
       case res
         when nil then false
         when Array then true
