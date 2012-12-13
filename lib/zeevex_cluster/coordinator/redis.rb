@@ -69,7 +69,7 @@ module ZeevexCluster::Coordinator
 
     def set(key, value, options = {})
       @client.setex(to_key(key), options.fetch(:expiration, @expiration), encode(value)).chomp == 'OK'
-    rescue Redis::CannotConnectError
+    rescue ::Redis::CannotConnectError
       raise ZeevexCluster::Coordinator::ConnectionError.new "Connection error", $!
     end
 
@@ -107,13 +107,13 @@ module ZeevexCluster::Coordinator
       end
     rescue ZeevexCluster::Coordinator::DontChange => e
       false
-    rescue Redis::CannotConnectError
+    rescue ::Redis::CannotConnectError
       raise ZeevexCluster::Coordinator::ConnectionError.new "Connection error", $!
     end
 
     def get(key)
       decode @client.get(to_key(key))
-    rescue Redis::CannotConnectError
+    rescue ::Redis::CannotConnectError
       raise ZeevexCluster::Coordinator::ConnectionError.new "Connection error", $!
     end
 
