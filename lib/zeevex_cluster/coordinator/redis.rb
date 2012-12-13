@@ -23,13 +23,13 @@ module ZeevexCluster::Coordinator
         false
       end
     rescue ::Redis::CannotConnectError
-      raise ZeevexCluster::Coordinator::ConnectionError.new "Connection error", $!
+      raise ZeevexCluster::Coordinator::ConnectionError.new 'Connection error', $!
     end
 
     def set(key, value, options = {})
-      @client.setex(to_key(key), options.fetch(:expiration, @expiration), serialize_token(value)).chomp == 'OK'
+      status( @client.setex(to_key(key), options.fetch(:expiration, @expiration), serialize_token(value)) ) == STATUS_OK
     rescue ::Redis::CannotConnectError
-      raise ZeevexCluster::Coordinator::ConnectionError.new "Connection error", $!
+      raise ZeevexCluster::Coordinator::ConnectionError.new 'Connection error', $!
     end
 
     #
@@ -67,15 +67,27 @@ module ZeevexCluster::Coordinator
     rescue ZeevexCluster::Coordinator::DontChange => e
       false
     rescue ::Redis::CannotConnectError
-      raise ZeevexCluster::Coordinator::ConnectionError.new "Connection error", $!
+      raise ZeevexCluster::Coordinator::ConnectionError.new 'Connection error', $!
     end
 
     def get(key)
       deserialize_token @client.get(to_key(key))
     rescue ::Redis::CannotConnectError
-      raise ZeevexCluster::Coordinator::ConnectionError.new "Connection error", $!
+      raise ZeevexCluster::Coordinator::ConnectionError.new 'Connection error', $!
     end
 
+    protected
+
+    STATUS_OK = 'OK'
+
+    def status(response)
+      case response
+        when nil then nil
+        when String then response.chomp
+        else
+          raise ArgumentError, 'This should only be called on results from set / setex, etc.'
+      end
+    end
 
   end
 end

@@ -13,19 +13,19 @@ module ZeevexCluster::Coordinator
 
     def initialize(options = {})
       super
-      @client ||= MemCache.new "#{@server}:#{@port}"
+      @client ||= MemCache.new "#@server:#@port"
     end
 
     def add(key, value, options = {})
-      @client.add(to_key(key), serialize_token(value), options.fetch(:expiration, @expiration), raw?).chomp == 'STORED'
+      status( @client.add(to_key(key), serialize_token(value), options.fetch(:expiration, @expiration), raw?) ) == STORED
     rescue MemCache::MemCacheError
-      raise ZeevexCluster::Coordinator::ConnectionError.new "Connection error", $!
+      raise ZeevexCluster::Coordinator::ConnectionError.new 'Connection error', $!
     end
 
     def set(key, value, options = {})
-      @client.set(to_key(key), serialize_token(value), options.fetch(:expiration, @expiration), raw?).chomp == 'STORED'
+      status( @client.set(to_key(key), serialize_token(value), options.fetch(:expiration, @expiration), raw?) ) == STORED
     rescue MemCache::MemCacheError
-      raise ZeevexCluster::Coordinator::ConnectionError.new "Connection error", $!
+      raise ZeevexCluster::Coordinator::ConnectionError.new 'Connection error', $!
     end
 
     #
@@ -41,25 +41,38 @@ module ZeevexCluster::Coordinator
       res = @client.cas(to_key(key), options.fetch(:expiration, @expiration), raw?) do |inval|
         serialize_token(yield(deserialize_token(inval)))
       end
-      case res
+      case status(res)
         when nil then nil
-        when "EXISTS\r\n", "EXISTS" then false
-        when "STORED\r\n", "STORED" then true
+        when EXISTS then false
+        when STORED then true
+        else raise "Unhandled status code: #{res}"
       end
-    rescue ZeevexCluster::Coordinator::DontChange => e
+    rescue ZeevexCluster::Coordinator::DontChange
       false
     rescue MemCache::MemCacheError
-      raise ZeevexCluster::Coordinator::ConnectionError.new "Connection error", $!
+      raise ZeevexCluster::Coordinator::ConnectionError.new 'Connection error', $!
     end
 
     def get(key)
       val = @client.get(to_key(key), raw?)
       val ? deserialize_token(val) : val
     rescue MemCache::MemCacheError
-      raise ZeevexCluster::Coordinator::ConnectionError.new "Connection error", $!
+      raise ZeevexCluster::Coordinator::ConnectionError.new 'Connection error', $!
     end
 
     protected
+
+    STORED = 'STORED'
+    EXISTS = 'EXISTS'
+
+    def status(response)
+      case response
+        when nil then nil
+        when String then response.chomp
+        else
+          raise ArgumentError, 'This should only be called on results from cas, add, set, etc.'
+      end
+    end
 
     def raw?
       true
