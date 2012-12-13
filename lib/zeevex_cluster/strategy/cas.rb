@@ -72,7 +72,7 @@ class ZeevexCluster::Strategy::Cas
 
   def start
     raise "Already started" if @thread || @state == :started
-    @start_time = Time.now
+    @start_time = time_now
     @state  = :started
     @locked_at = nil
     @thread = Thread.new do
@@ -110,12 +110,12 @@ class ZeevexCluster::Strategy::Cas
       @resign_until = nil
       campaign
     else
-      @resign_until = Time.now + (delay || [@update_period*6, @stale_time].min)
+      @resign_until = time_now + (delay || [@update_period*6, @stale_time].min)
       current = nil
       server.cas(key) do |val|
         current = val
         if is_me?(val)
-          my_token.merge(:timestamp => Time.now - 2*@stale_time)
+          my_token.merge(:timestamp => time_now - 2*@stale_time)
         else
           raise ZeevexCluster::Coordinator::DontChange
         end
@@ -181,9 +181,9 @@ class ZeevexCluster::Strategy::Cas
     run_hook :connection_error
     change_cluster_status :offline
   end
-
+  
   def my_token
-    now = Time.now
+    now = time_now
     {:nodename    => nodename,
      :joined_at   => @start_time,
      :locked_at   => @locked_at || now,
@@ -191,7 +191,7 @@ class ZeevexCluster::Strategy::Cas
   end
 
   def key
-    cluster_name
+    @key ||= (@options[:cluster_key] || "#{cluster_name}:throne")
   end
 
   def is_me?(token)
@@ -273,21 +273,25 @@ class ZeevexCluster::Strategy::Cas
   # Must have held lock for INAUGURATION_UPDATE_DELAY update periods
   #
   def qualifies_for_master?(token)
-    now = Time.now
+    now = time_now()
     ! token_invalid?(token) and
         token[:timestamp] > (now - @stale_time) and
         token[:locked_at] <= (now - INAUGURATION_UPDATE_DELAY * @update_period)
   end
 
+  def time_now
+    Time.now.utc
+  end
+
   def token_invalid?(token)
-    now = Time.now
+    now = time_now
     !token || !token.is_a?(Hash) || !token[:timestamp] ||
         ! token[:locked_at] || ! token[:nodename] ||
         token[:timestamp] < (now - @stale_time)
   end
 
   def resigned?
-    @resign_until && @resign_until > Time.now
+    @resign_until && @resign_until > time_now
   end
 
   def campaign
@@ -358,7 +362,7 @@ class ZeevexCluster::Strategy::Cas
   # has the master gone without updating suspiciously long?
   #
   def master_suspect?(token)
-    Time.now - token[:timestamp] > SUSPECT_MISSED_UPDATE_COUNT * @update_period
+    time_now - token[:timestamp] > SUSPECT_MISSED_UPDATE_COUNT * @update_period
   end
 
   def reset_state_vars
