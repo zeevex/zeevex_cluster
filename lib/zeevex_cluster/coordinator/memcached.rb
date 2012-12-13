@@ -67,10 +67,10 @@ module ZeevexCluster::Coordinator
 
     def status(response)
       case response
-        when nil then nil
+        when nil, true, false then response
         when String then response.chomp
         else
-          raise ArgumentError, 'This should only be called on results from cas, add, set, etc.'
+          raise ArgumentError, "This should only be called on results from cas, add, set, etc. - got result #{response.inspect}"
       end
     end
 

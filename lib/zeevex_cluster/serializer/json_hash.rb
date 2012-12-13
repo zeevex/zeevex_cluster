@@ -12,10 +12,11 @@ class ZeevexCluster::Serializer::JsonHash
     key.to_s.match(/(_at|timestamp)$/)
   end
 
-  def deserialize(str)
-    return nil if str.nil? || str.empty?
-    parsed = JSON.parse str
-    raise ArgumentError, 'Must be a JSON serialized hash' unless parsed.is_a?(Hash)
+  def untranslate_hash(parsed)
+    raise ArgumentError, 'Must be a hash' unless parsed.is_a?(Hash)
+    if parsed.count == 1 && parsed.has_key?('$primitive')
+      return parsed['$primitive']
+    end
     hash = {}
     parsed.each do |(key, val)|
       val = Time.at(val).utc if is_time_field(key, val)
@@ -24,12 +25,30 @@ class ZeevexCluster::Serializer::JsonHash
     hash
   end
 
-  def serialize(hash)
+  def translate_hash(hash)
     raise ArgumentError, 'Must be a hash' unless hash.is_a?(Hash)
     hash = hash.clone
     hash.keys.each do |key|
       hash[key] = hash[key].utc.to_f if is_time_field(key, hash[key])
     end
-    hash.to_json
+    hash
+  end
+
+  def deserialize(str)
+    parsed = JSON.parse(str)
+    case parsed
+      when Hash then untranslate_hash(parsed)
+      else parsed
+    end
+  end
+
+  def serialize(obj)
+    obj = case obj
+            when Hash then translate_hash(obj)
+            when Numeric, String, TrueClass, FalseClass, NilClass then
+                  {'$primitive' => obj}
+            else obj
+          end
+    JSON.dump(obj)
   end
 end
