@@ -12,11 +12,14 @@ module ZeevexCluster
         add_hooks(options[:hooks])
       end
 
-      @strategy = options[:strategy] ||
-          ZeevexCluster::Strategy::Cas.new({:nodename => options.fetch(:nodename, Socket.gethostname),
-                                            :cluster_name => options[:cluster_name],
-                                            :coordinator_type => options[:coordinator_type] || 'memcached',
-                                            :logger => options[:logger]}.merge(options[:backend_options]))
+      unless (@strategy = options[:strategy])
+        stype = options[:strategy_type] || 'cas'
+        @strategy = ZeevexCluster::Strategy.create(stype,
+                                                   {:nodename         => options.fetch(:nodename, Socket.gethostname),
+                                                    :cluster_name     => options[:cluster_name],
+                                                    :logger           => options[:logger]}.
+                                                       merge(options[:backend_options]))
+          end
       @strategy.add_hook_observer Proc.new { |*args| hook_observer(*args) }
 
       after_initialize
