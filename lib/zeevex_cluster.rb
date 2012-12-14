@@ -24,5 +24,6 @@ require 'zeevex_cluster/base'
 require 'zeevex_cluster/static'
 require 'zeevex_cluster/unclustered'
 require 'zeevex_cluster/strategy'
+require 'zeevex_cluster/election'
 require 'zeevex_cluster/coordinator'
 

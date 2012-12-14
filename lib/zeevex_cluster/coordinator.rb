@@ -17,6 +17,13 @@ module ZeevexCluster
 
     class ConnectionError < CoordinatorError; end
     class ConsistencyError < CoordinatorError; end
+
+    def self.create(coordinator_type, options)
+      require 'zeevex_cluster/coordinator/' + coordinator_type
+      clazz = self.const_get(coordinator_type.capitalize)
+      raise ArgumentError, "Unknown coordinator type: #{coordinator_type}" unless clazz
+      clazz.new options
+    end
   end
 end
 

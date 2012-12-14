@@ -1,7 +1,7 @@
 require 'zeevex_cluster/strategy/cas'
 
 module ZeevexCluster
-  class Memcached < Base
+  class Election < Base
 
     def initialize(options = {})
       super
@@ -11,9 +11,11 @@ module ZeevexCluster
         add_hooks(options[:hooks])
       end
 
-      @strategy = ZeevexCluster::Strategy::Cas.new({:nodename => options.fetch(:nodename, Socket.gethostname),
-                                                    :cluster_name => options[:cluster_name],
-                                                    :logger => options[:logger]}.merge(options[:backend_options]))
+      @strategy = options[:strategy] ||
+          ZeevexCluster::Strategy::Cas.new({:nodename => options.fetch(:nodename, Socket.gethostname),
+                                            :cluster_name => options[:cluster_name],
+                                            :coordinator_type => options[:coordinator_type] || 'memcached',
+                                            :logger => options[:logger]}.merge(options[:backend_options]))
       @strategy.add_hook_observer Proc.new { |*args| hook_observer(*args) }
 
       after_initialize

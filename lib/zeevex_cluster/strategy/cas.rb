@@ -24,11 +24,13 @@ class ZeevexCluster::Strategy::Cas
 
     reset_state_vars
 
-    @server = options[:coordinator] ||
-        ZeevexCluster::Coordinator::Memcached.new(:server     => options[:server],
+    unless (@server = options[:coordinator])
+      coordinator_type = options[:coordinator_type] || 'memcached'
+      @server = ZeevexCluster::Coordinator.create(coordinator_type,
+                                                  :server     => options[:server],
                                                   :port       => options[:port],
                                                   :expiration => @stale_time)
-
+    end
 
     if options[:hooks]
       add_hooks options[:hooks]
