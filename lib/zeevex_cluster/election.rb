@@ -1,3 +1,4 @@
+require 'zeevex_cluster/strategy'
 require 'zeevex_cluster/strategy/cas'
 
 module ZeevexCluster
@@ -29,8 +30,6 @@ module ZeevexCluster
     ## Make this node the master, returning true if successful. No-op for now.
     ##
     def make_master!
-      #raise ClusterActionFailed, "Can not change master" unless master?
-      #raise AlreadyMaster, "This node is already the master" if master?
       if @strategy.steal_election!
         true
       else
@@ -45,8 +44,6 @@ module ZeevexCluster
     ##
     def resign!(delay = nil)
       @strategy.resign delay
-      ## FIXME: is this a good idea?
-      # @strategy.stop if @strategy.started? && delay == nil
     end
 
     def campaign!
@@ -70,9 +67,10 @@ module ZeevexCluster
 
     def leave
       return unless member?
-      @member = false
       resign! if master?
       @strategy.stop if @strategy.started?
+    ensure
+      @member = false
     end
 
     def member?
@@ -88,7 +86,6 @@ module ZeevexCluster
           run_hook :cluster_status_change, args[0], args[1]
         else
           run_hook "strategy_#{hook_name}".to_sym, *args
-          nil
       end
     end
   end
