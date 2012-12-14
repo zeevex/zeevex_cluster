@@ -3,4 +3,5 @@ module ZeevexCluster
   end
 end
 
+require 'zeevex_cluster/strategy/base'
 require 'zeevex_cluster/strategy/cas'

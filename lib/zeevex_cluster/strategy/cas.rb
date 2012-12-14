@@ -1,10 +1,9 @@
-require 'zeevex_cluster/coordinator/memcached'
+require 'zeevex_cluster/strategy/base'
 require 'socket'
 require 'logger'
 
-class ZeevexCluster::Strategy::Cas
-  include ZeevexCluster::Util
-  include ZeevexCluster::Hooks
+class ZeevexCluster::Strategy::Cas < ZeevexCluster::Strategy::Base
+
 
   attr_accessor :stale_time, :update_period, :server, :nodename, :cluster_name
 
@@ -12,17 +11,9 @@ class ZeevexCluster::Strategy::Cas
   INAUGURATION_UPDATE_DELAY   = 2
 
   def initialize(options = {})
-    @options       = options
-    @cluster_name  = options[:cluster_name]
-    @nodename      = options[:nodename] || Socket.gethostname
+    super
     @stale_time    = options.fetch(:stale_time, 40)
     @update_period = options.fetch(:update_period, 10)
-    @hooks         = {}
-    @logger        = options[:logger]
-
-    @state         = :stopped
-
-    reset_state_vars
 
     unless (@server = options[:coordinator])
       coordinator_type = options[:coordinator_type] || 'memcached'
@@ -31,15 +22,6 @@ class ZeevexCluster::Strategy::Cas
                                                   :port       => options[:port],
                                                   :expiration => @stale_time)
     end
-
-    if options[:hooks]
-      add_hooks options[:hooks]
-    end
-  end
-
-
-  def am_i_master?
-    @my_cluster_status == :master
   end
 
   def do_i_hold_lock?
@@ -54,21 +36,7 @@ class ZeevexCluster::Strategy::Cas
     @current_master && @current_master[:nodename]
   end
 
-  def has_master?
-    !! @current_master
-  end
 
-  def state
-    @state
-  end
-
-  def started?
-    @state == :started
-  end
-
-  def stopped?
-    @state == :stopped
-  end
 
   class StopException < StandardError; end
 
@@ -200,27 +168,6 @@ class ZeevexCluster::Strategy::Cas
     token && token.is_a?(Hash) && token[:nodename] == nodename
   end
 
-  def change_my_status(status, attrs = {})
-    return if status == @my_cluster_status
-
-    old_status = @my_cluster_status
-    @my_cluster_status = status
-    run_hook :status_change, status, old_status, attrs
-  end
-
-  def change_master_status(status, attrs = {})
-    return if status == @master_status
-
-    old_status, @master_status = @master_status, status
-    run_hook :master_status_change, status, old_status, attrs
-  end
-
-  def change_cluster_status(status, attrs = {})
-    return if status == @cluster_status
-
-    old_status, @cluster_status = @cluster_status, status
-    run_hook :cluster_status_change, status, old_status, attrs
-  end
 
   def got_lock(token)
     unless @locked_at
@@ -368,13 +315,11 @@ class ZeevexCluster::Strategy::Cas
   end
 
   def reset_state_vars
+    super
+
     @resign_until = nil
     @my_master_token = nil
     @current_master = nil
-    @state = :stopped
     @thread = nil
-    @my_cluster_status = :nonmember
-    @master_status = :none
-    @cluster_status = :offline
   end
 end
