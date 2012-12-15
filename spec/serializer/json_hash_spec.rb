@@ -7,17 +7,19 @@ describe ZeevexCluster::Serializer::JsonHash do
   end
 
   context 'cas host tokens' do
+    let :now do
+      Time.at(1355418862)
+    end
     let :times do
-      now = Time.at(1355418862)
       {:joined_at => now - 7200, :timestamp => now, :locked_at => now - 600}
     end
 
-    let :hash do
+    let :nodehash do
       times.merge({:nodename => 'mynode'})
     end
 
     let :json do
-      serializer.serialize(hash)
+      serializer.serialize(nodehash)
     end
 
     context 'serialized form' do
@@ -36,7 +38,7 @@ describe ZeevexCluster::Serializer::JsonHash do
     context 'deserialized hash' do
       subject { serializer.deserialize(json) }
       it { should have(4).keys }
-      it { should == hash }
+      it { should == nodehash }
       it 'should have only symbol keys' do
         subject.keys.reject {|k| k.is_a?(Symbol) }.should be_empty
       end
@@ -45,6 +47,21 @@ describe ZeevexCluster::Serializer::JsonHash do
       end
       it 'should have matching times for 3 fields' do
         times.map {|(key, val)| subject[key].utc.should == val.utc }
+      end
+    end
+
+    context 'nested hashes' do
+      let :innerhash do
+        {:when => now - 7200, :members => ["a", "b"]}
+      end
+
+      let :tophash do
+        {:mlist => innerhash, :timestamp => now}
+      end
+
+      it 'should roundtrip' do
+        pending
+        serializer.deserialize( serializer.serialize(tophash) ).should == tophash
       end
     end
   end
