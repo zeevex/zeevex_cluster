@@ -104,23 +104,17 @@ module ZeevexCluster::Coordinator
       raise ZeevexCluster::Coordinator::ConnectionError.new 'Connection error', $!
     end
 
-    def append(key, val, options = {})
-      res = query %{UPDATE #@table set value = CONCAT(value, #{qval value}),
-                      lock_version = lock_version + 1,
-                      updated_at = #{qnow}
-                      where #{qcol keyname} = #{qval key};}
-      res[:affected_rows] == 1
+    def append(key, str, options = {})
+      newval = Literal.new %{CONCAT(value, #{qval str})}
+      do_update_row({:keyname => key}, {:value => newval})
     rescue ::Mysql2::Error
       raise ZeevexCluster::Coordinator::ConnectionError.new 'Connection error', $!
     end
 
     # TODO
-    def prepend(key, val, options = {})
-      res = query %{UPDATE #@table set value = CONCAT(#{qval value}, value),
-                      lock_version = lock_version + 1,
-                      updated_at = #{qnow}
-                      where #{qcol keyname} = #{qval key};}
-      res[:affected_rows] == 1
+    def prepend(key, str, options = {})
+      newval = Literal.new %{CONCAT(#{qval str}, value)}
+      do_update_row({:keyname => key}, {:value => newval})
     rescue ::Mysql2::Error
       raise ZeevexCluster::Coordinator::ConnectionError.new 'Connection error', $!
     end
