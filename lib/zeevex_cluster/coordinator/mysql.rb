@@ -24,8 +24,9 @@ module ZeevexCluster::Coordinator
     def add(key, value, options = {})
       key = to_key(key)
       value = serialize_value(value, options[:raw])
-      res = @client.query %{INSERT INTO #@table (keyname, value, created_at, lock_version)
-                            values (#{qval key}, #{qval value}, NOW(), lock_version + 1);}
+      @client.query %{INSERT INTO #@table (keyname, value, created_at, lock_version)
+                      values (#{qval key}, #{qval value}, NOW(), lock_version + 1);}
+      @client.affected_rows == 1
     rescue Mysql2::Error => e
       # duplicate key, probably
       case e.error_number
@@ -40,9 +41,10 @@ module ZeevexCluster::Coordinator
     def set(key, value, options = {})
       key = to_key(key)
       value = serialize_value(value, options[:raw])
-      res = @client.query %{INSERT INTO #@table (keyname, value, created_at)
+      @client.query %{INSERT INTO #@table (keyname, value, created_at)
                             values (#{qval key}, #{qval value}, NOW())
                            ON DUPLICATE KEY UPDATE value=#{qval value}, lock_version=lock_version + 1;}
+      @client.affected_rows == 1
     rescue ::Mysql2::Error
       raise ZeevexCluster::Coordinator::ConnectionError.new 'Connection error', $!
     end
