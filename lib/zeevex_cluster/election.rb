@@ -19,7 +19,7 @@ module ZeevexCluster
                                                     :cluster_name     => options[:cluster_name],
                                                     :logger           => options[:logger]}.
                                                        merge(options[:backend_options]))
-          end
+      end
       @strategy.add_hook_observer Proc.new { |*args| hook_observer(*args) }
 
       after_initialize
@@ -79,6 +79,8 @@ module ZeevexCluster
     def member?
       @member
     end
+
+    protected
 
     def hook_observer(hook_name, source, *args)
       logger.debug "#{self.class} observed hook: #{hook_name} #{args.inspect}"
