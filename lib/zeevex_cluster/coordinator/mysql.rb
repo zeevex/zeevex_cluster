@@ -21,18 +21,19 @@ module ZeevexCluster::Coordinator
                                      :reconnect => true)
     end
 
+    # TODO: handle upsert when old row is expires
     def add(key, value, options = {})
       key = to_key(key)
       value = serialize_value(value, options[:raw])
       @client.query %{INSERT INTO #@table (keyname, value, created_at, lock_version)
-                      values (#{qval key}, #{qval value}, NOW(), lock_version + 1);}
+                      values (#{qval key}, #{qval value}, #{now}, lock_version + 1);}
       @client.affected_rows == 1
     rescue Mysql2::Error => e
       # duplicate key, probably
       case e.error_number
         # duplicate key
         when 1062 then false
-        else raise "Unhandled mysql error: #{res.errno} #{res.message}"
+        else raise "Unhandled mysql error: #{e.errno} #{e.message}"
       end
     rescue StandardError
       raise ZeevexCluster::Coordinator::ConnectionError.new 'Connection error', $!
@@ -42,7 +43,7 @@ module ZeevexCluster::Coordinator
       key = to_key(key)
       value = serialize_value(value, options[:raw])
       @client.query %{INSERT INTO #@table (keyname, value, created_at)
-                            values (#{qval key}, #{qval value}, NOW())
+                            values (#{qval key}, #{qval value}, #{now})
                            ON DUPLICATE KEY UPDATE value=#{qval value}, lock_version=lock_version + 1;}
       @client.affected_rows == 1
     rescue ::Mysql2::Error
@@ -116,8 +117,14 @@ module ZeevexCluster::Coordinator
     protected
 
     # mysql get
-    def do_get(key)
-      res = @client.query %{SELECT * from #@table where keyname = #{qval key};}, :symbolize_keys => true
+    def do_get(key, options = {})
+      conditions = []
+      conditions << %{#{qcol 'keyname'} = #{qval key}}
+      unless options[:ignore_expiration]
+        conditions << %{(#{qcol 'expires_at'} IS NULL or #{qcol 'expires_at'} < NOW())}
+      end
+      res = @client.query %{SELECT * from #@table where #{conditions.join(' AND ')};},
+                          :symbolize_keys => true
       res.count == 0 ? nil : res.first
     end
 
@@ -142,7 +149,19 @@ module ZeevexCluster::Coordinator
 
     # FIXME
     def qval(val)
-      %{'#{val}'}
+      case val
+        when String then %{'#{val}'}
+        when true then '1'
+        when false then '0'
+        when nil then 'NULL'
+        when Numeric then val.to_s
+        when Time then qval(val.utc.strftime('%Y-%m-%d-%H:%M:%S'))
+        else val
+      end
+    end
+
+    def now
+      qval Time.now.utc
     end
 
     STORED     = 'STORED'
