@@ -19,14 +19,18 @@ module ZeevexCluster::Coordinator
                                      :database => options[:database] || 'zcluster',
                                      :username => options[:username],
                                      :password => options[:password],
-                                     :reconnect => true)
+                                     :reconnect => true,
+                                     :symbolize_keys => true,
+                                     :cache_rows => false,
+                                     :application_timezone => :utc,
+                                     :database_timezone => :utc)
     end
 
     # TODO: handle upsert when old row is expired
     def add(key, value, options = {})
       key = to_key(key)
       value = serialize_value(value, options[:raw])
-      @client.query %{INSERT INTO #@table (keyname, value, created_at, lock_version)
+      query %{INSERT INTO #@table (keyname, value, created_at, lock_version)
                       values (#{qval key}, #{qval value}, #{now}, lock_version + 1);}
       @client.affected_rows == 1
     rescue Mysql2::Error => e
@@ -44,7 +48,7 @@ module ZeevexCluster::Coordinator
     def set(key, value, options = {})
       key = to_key(key)
       value = serialize_value(value, options[:raw])
-      @client.query %{INSERT INTO #@table (keyname, value, created_at)
+      query %{INSERT INTO #@table (keyname, value, created_at)
                             values (#{qval key}, #{qval value}, #{now})
                            ON DUPLICATE KEY UPDATE value=#{qval value}, lock_version=lock_version + 1;}
       @client.affected_rows == 1
@@ -64,7 +68,7 @@ module ZeevexCluster::Coordinator
     def cas(key, options = {})
       key = to_key(key)
 
-      orig_row = do_get(key)
+      orig_row = do_get_first(key)
       return nil if orig_row.nil?
 
       expiration = options.fetch(:expiration, @expiration)
@@ -85,7 +89,7 @@ module ZeevexCluster::Coordinator
 
     def get(key, options = {})
       key = to_key(key)
-      row = do_get key
+      row = do_get_first key
       return nil if row.nil?
 
       if !options[:raw]
@@ -98,7 +102,7 @@ module ZeevexCluster::Coordinator
     end
 
     def append(key, val, options = {})
-      @client.query %{UPDATE #@table set value = CONCAT(value, #{qval value}),
+      query %{UPDATE #@table set value = CONCAT(value, #{qval value}),
                       lock_version = lock_version + 1
                       where #{qcol keyname} = #{qval key};}
       @client.affected_rows == 1
@@ -108,7 +112,7 @@ module ZeevexCluster::Coordinator
 
     # TODO
     def prepend(key, val, options = {})
-      @client.query %{UPDATE #@table set value = CONCAT(#{qval value}, value),
+      query %{UPDATE #@table set value = CONCAT(#{qval value}, value),
                       lock_version = lock_version + 1
                       where #{qcol keyname} = #{qval key};}
       @client.affected_rows == 1
@@ -125,9 +129,12 @@ module ZeevexCluster::Coordinator
       unless options[:ignore_expiration]
         conditions << %{(#{qcol 'expires_at'} IS NULL or #{qcol 'expires_at'} < NOW())}
       end
-      res = @client.query %{SELECT * from #@table where #{conditions.join(' AND ')};},
-                          :symbolize_keys => true
-      res.count == 0 ? nil : res.first
+      query(%{SELECT * from #@table where #{conditions.join(' AND ')};})[:resultset]
+    end
+
+    def do_get_first(*args)
+      res = do_get(*args)
+      res && res.first
     end
 
     def simple_cond(row)
@@ -162,9 +169,14 @@ module ZeevexCluster::Coordinator
       end
       updates << "lock_version = lock_version + 1"
       statement = %{UPDATE #@table SET #{updates.join(", ")} #{conditions};}
-      puts "STMT = [#{statement}]"
-      res = @client.query statement
+      res = query statement
       @client.affected_rows == 0 ? false : true
+    end
+
+    def query(statement, options = {})
+      logger.debug "STMT = [#{statement}]"
+      res = @client.query statement, options
+      {:result => res, :affected_rows => @client.affected_rows, :last_id => @client.last_id}
     end
 
     #
