@@ -1,7 +1,11 @@
 require 'zeevex_cluster/coordinator/base_key_val_store'
-
+#
+# expired key handling hasn't been well-tested
+#
 module ZeevexCluster::Coordinator
   class Mysql < BaseKeyValStore
+    ERR_DUPLICATE_KEY = 1062
+
     def self.setup
       unless @setup
         require 'mysql2'
@@ -35,14 +39,15 @@ module ZeevexCluster::Coordinator
       res = do_insert_row(:keyname => key, :value => value)
       res[:affected_rows] == 1
     rescue Mysql2::Error => e
-      # duplicate key, probably
       case e.error_number
         # duplicate key
-        when 1062
+        # see http://www.briandunning.com/error-codes/?source=MySQL
+        when ERR_DUPLICATE_KEY
           false
-        else raise "Unhandled mysql error: #{e.errno} #{e.message}"
+        else
+          raise  ZeevexCluster::Coordinator::ConnectionError.new, "Unhandled mysql error: #{e.errno} #{e.message}", e
       end
-    rescue StandardError
+    rescue
       raise ZeevexCluster::Coordinator::ConnectionError.new 'Connection error', $!
     end
 
@@ -69,7 +74,7 @@ module ZeevexCluster::Coordinator
     def cas(key, options = {})
       key = to_key(key)
 
-      orig_row = do_get_first(key, :ignore_expiration => true)
+      orig_row = do_get_first(key)
       return nil unless orig_row
 
       expiration = options.fetch(:expiration, @expiration)
@@ -81,12 +86,17 @@ module ZeevexCluster::Coordinator
       case res
         when false then false
         when true then true
-        else raise "Unhandled return value from do_update_row - #{res.inspect}"
+        else
+          raise ZeevexCluster::Coordinator::ConnectionError, "Unhandled return value from do_update_row - #{res.inspect}"
       end
     rescue ZeevexCluster::Coordinator::DontChange => e
       false
     rescue ::Mysql2::Error
+      logger.error "got error in cas: #{$!.inspect}"
       raise ZeevexCluster::Coordinator::ConnectionError.new 'Connection error', $!
+    rescue
+      logger.error "got general error in cas: #{$!.inspect}"
+      raise
     end
 
 
@@ -161,9 +171,9 @@ module ZeevexCluster::Coordinator
     end
 
     def do_insert_row(row, options = {})
-      (quals[:keyname] && quals[:value]) or raise ArgumentError, "Must specify at least key and value"
-      quals[:namespace] = @namespace
+      (row[:keyname] && row[:value]) or raise ArgumentError, "Must specify at least key and value"
       now = self.now
+      row = row.merge(:namespace => @namespace)
       row = {:created_at => now, :updated_at => now}.merge(row) unless options[:skip_timestamps]
       query %{INSERT INTO #@table (#{row.keys.map {|k| qcol(k)}.join(", ")})
                            values (#{row.values.map {|k| qval(k)}.join(", ")});}
@@ -196,20 +206,27 @@ module ZeevexCluster::Coordinator
     end
 
     def clear_expired_rows
-      @client.query %{DELETE FROM #@table WHERE #{qcol 'expires_at'} < #{qnow} and #{qcol 'namespace'} = #{qval @namespace};}
+      statement = %{DELETE FROM #@table WHERE #{qcol 'expires_at'} < #{qnow} and #{qcol 'namespace'} = #{qval @namespace};}
+      @client.query statement
+      true
+    rescue ::Mysql2::Error
+      log_exception($!, statement)
+      false
     rescue
-      logger.error "Error clearing expired rows: #{$!.inspect} #{$!.message}"
+      logger.error %{Unhandled error in query: #{$!.inspect}\nstatement=[#{statement}]\n#{$!.backtrace.join("\n")}}
     end
 
     def query(statement, options = {})
       unless options[:ignore_expiration]
         clear_expired_rows
       end
-      logger.debug "STMT = [#{statement}]"
       res = @client.query statement, options
       {:resultset => res, :affected_rows => @client.affected_rows, :last_id => @client.last_id}
+    rescue ::Mysql2::Error
+      log_exception($!, statement)
+      raise
     rescue
-      logger.error %{MYSQL connection error: #{$!.inspect}:\nstatement=[#{statement}]\n#{$!.backtrace.join("\n")}}
+      logger.error %{Unhandled error in query: #{$!.inspect}\nstatement=[#{statement}]\n#{$!.backtrace.join("\n")}}
       raise
     end
 
@@ -227,6 +244,10 @@ module ZeevexCluster::Coordinator
       keys = Array(keys).flatten
       src.keys.each { |k| hash[k] = src[k] unless keys.include?(k) }
       hash
+    end
+
+    def log_exception(e, statement=nil)
+      logger.error %{Mysql exception errno=#{e.errno}, sql_state=#{e.sql_state}, message=#{e.message}, statement=[#{statement || 'UNKNOWN'}]\n#{e.backtrace.join("\n")}}
     end
 
     # FIXME
