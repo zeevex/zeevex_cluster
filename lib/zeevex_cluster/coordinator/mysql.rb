@@ -1,4 +1,24 @@
 require 'zeevex_cluster/coordinator/base_key_val_store'
+
+#
+# example setup for mysql coordinator:
+#
+# grant all privileges on zcluster.* to 'zcluster'@localhost identified by 'zclusterp';
+#
+# drop table kvstore;
+#
+# create table kvstore (keyname varchar(255) not null,
+#                      value mediumtext,
+#                      namespace varchar(255) default '',
+#                      flags integer default 0,
+#                      created_at datetime,
+#                      expires_at datetime,
+#                      updated_at datetime,
+#                      lock_version integer default 0);
+#
+# create unique index keyname_idx on kvstore (keyname, namespace);
+#
+
 #
 # expired key handling hasn't been well-tested
 #
