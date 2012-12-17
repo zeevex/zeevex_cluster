@@ -15,6 +15,7 @@ module ZeevexCluster::Coordinator
       super
       @table = @options[:table] || 'kvstore'
       @logger = @options[:logger] || Logger.new(STDOUT)
+      @namespace = @options.fetch(:namespace, '')
       @client ||= Mysql2::Client.new(:host => options[:server] || 'localhost',
                                      :port => options[:port] | 3306,
                                      :database => options[:database] || 'zcluster',
@@ -31,9 +32,8 @@ module ZeevexCluster::Coordinator
     def add(key, value, options = {})
       key = to_key(key)
       value = serialize_value(value, options[:raw])
-      query %{INSERT INTO #@table (keyname, value, created_at, lock_version)
-                      values (#{qval key}, #{qval value}, #{qnow}, lock_version + 1);}
-      @client.affected_rows == 1
+      res = do_insert_row(:keyname => key, :value => value)
+      res[:affected_rows] == 1
     rescue Mysql2::Error => e
       # duplicate key, probably
       case e.error_number
@@ -49,10 +49,10 @@ module ZeevexCluster::Coordinator
     def set(key, value, options = {})
       key = to_key(key)
       value = serialize_value(value, options[:raw])
-      query %{INSERT INTO #@table (keyname, value, created_at)
-                            values (#{qval key}, #{qval value}, #{qnow})
-                           ON DUPLICATE KEY UPDATE value=#{qval value}, lock_version=lock_version + 1;}
-      @client.affected_rows == 1
+      row = {:keyname => key, :value => value}
+      row[:expires_at] = now + options[:expiration] if options[:expiration]
+      res = do_upsert_row(row)
+      res[:affected_rows] == 1
     rescue ::Mysql2::Error
       raise ZeevexCluster::Coordinator::ConnectionError.new 'Connection error', $!
     end
@@ -75,7 +75,9 @@ module ZeevexCluster::Coordinator
       expiration = options.fetch(:expiration, @expiration)
 
       newval = serialize_value(yield(deserialize_value(orig_row[:value], options[:raw])), options[:raw])
-      res = do_update_row(simple_cond(orig_row), :value => newval)
+      updates = {:value => newval}
+      updates[:expires_at] = now + options[:expiration] if options[:expiration]
+      res = do_update_row(simple_cond(orig_row), updates)
       case res
         when false then false
         when true then true
@@ -103,20 +105,22 @@ module ZeevexCluster::Coordinator
     end
 
     def append(key, val, options = {})
-      query %{UPDATE #@table set value = CONCAT(value, #{qval value}),
-                      lock_version = lock_version + 1
+      res = query %{UPDATE #@table set value = CONCAT(value, #{qval value}),
+                      lock_version = lock_version + 1,
+                      updated_at = #{qnow}
                       where #{qcol keyname} = #{qval key};}
-      @client.affected_rows == 1
+      res[:affected_rows] == 1
     rescue ::Mysql2::Error
       raise ZeevexCluster::Coordinator::ConnectionError.new 'Connection error', $!
     end
 
     # TODO
     def prepend(key, val, options = {})
-      query %{UPDATE #@table set value = CONCAT(#{qval value}, value),
-                      lock_version = lock_version + 1
+      res = query %{UPDATE #@table set value = CONCAT(#{qval value}, value),
+                      lock_version = lock_version + 1,
+                      updated_at = #{qnow}
                       where #{qcol keyname} = #{qval key};}
-      @client.affected_rows == 1
+      res[:affected_rows] == 1
     rescue ::Mysql2::Error
       raise ZeevexCluster::Coordinator::ConnectionError.new 'Connection error', $!
     end
@@ -127,6 +131,7 @@ module ZeevexCluster::Coordinator
     def do_get(key, options = {})
       conditions = []
       conditions << %{#{qcol 'keyname'} = #{qval key}}
+      conditions << %{#{qcol 'namespace'} = #{qval @namespace}}
       unless options[:ignore_expiration]
         conditions << %{(#{qcol 'expires_at'} IS NULL or #{qcol 'expires_at'} < #{qnow})}
       end
@@ -139,7 +144,7 @@ module ZeevexCluster::Coordinator
     end
 
     def simple_cond(row)
-      extract_keys row, :keyname, :lock_version
+      slice_hash row, :keyname, :lock_version
     end
 
     def make_comparison(trip)
@@ -161,21 +166,43 @@ module ZeevexCluster::Coordinator
       end
     end
 
-    # mysql get
-    def do_update_row(quals, newattrvals)
+    def do_insert_row(row, options = {})
+      (quals[:keyname] && quals[:value]) or raise ArgumentError, "Must specify at least key and value"
+      quals[:namespace] = @namespace
+      now = self.now
+      row = {:created_at => now, :updated_at => now}.merge(row) unless options[:skip_timestamps]
+      query %{INSERT INTO #@table (#{row.keys.map {|k| qcol(k)}.join(", ")})
+                           values (#{row.values.map {|k| qval(k)}.join(", ")});}
+    end
+
+    def do_upsert_row(row, options = {})
+      (row[:keyname] && row[:value]) or raise ArgumentError, "Must specify at least key and value"
+      now = self.now
+      row = row.merge(:namespace => @namespace)
+      row = {:created_at => now, :updated_at => now}.merge(row) unless options[:skip_timestamps]
+      updatable_row = trim_hash(row, [:created_at, :keyname, :lock_version]).merge(
+          :lock_version => Literal.new("lock_version + 1"))
+      query %{INSERT INTO #@table (#{row.keys.map {|k| qcol(k)}.join(", ")})
+                           values (#{row.values.map {|k| qval(k)}.join(", ")})
+              ON DUPLICATE KEY UPDATE lock_version = lock_version + 1,
+                              #{updatable_row.map {|(k,v)| "#{qcol k} = #{qval v}"}.join(", ")};}
+    end
+
+    def do_update_row(quals, newattrvals, options = {})
       quals[:keyname] or raise "Must specify at least the key in an update"
       conditions = "WHERE " + make_conditions(quals)
+      newattrvals = {:updated_at => now}.merge(newattrvals) unless options[:skip_timestamps]
+      newattrvals = newattrvals.merge(:namespace => @namespace, :lock_version => Literal.new("lock_version + 1"))
       updates = newattrvals.map do |(key, val)|
         "#{qcol key} = #{qval val}"
       end
-      updates << "lock_version = lock_version + 1"
       statement = %{UPDATE #@table SET #{updates.join(", ")} #{conditions};}
       res = query statement
       res[:affected_rows] == 0 ? false : true
     end
 
     def clear_expired_rows
-      @client.query %{DELETE FROM #@table WHERE expires_at < #{qnow};}
+      @client.query %{DELETE FROM #@table WHERE #{qcol 'expires_at'} < #{qnow} and #{qcol 'namespace'} = #{qval @namespace};}
     rescue
       logger.error "Error clearing expired rows: #{$!.inspect} #{$!.message}"
     end
@@ -187,14 +214,24 @@ module ZeevexCluster::Coordinator
       logger.debug "STMT = [#{statement}]"
       res = @client.query statement, options
       {:resultset => res, :affected_rows => @client.affected_rows, :last_id => @client.last_id}
+    rescue
+      logger.error %{MYSQL connection error: #{$!.inspect}:\nstatement=[#{statement}]\n#{$!.backtrace.join("\n")}}
+      raise
     end
 
     #
     # extract a hash with a subset of keys
     #
-    def extract_keys(src, *keys)
+    def slice_hash(src, *keys)
       hash = src.class.new
       Array(keys).flatten.each { |k| hash[k] = src[k] if src.has_key?(k) }
+      hash
+    end
+
+    def trim_hash(src, *keys)
+      hash = src.class.new
+      keys = Array(keys).flatten
+      src.keys.each { |k| hash[k] = src[k] unless keys.include?(k) }
       hash
     end
 
@@ -206,6 +243,7 @@ module ZeevexCluster::Coordinator
     # FIXME
     def qval(val)
       case val
+        when Literal then val
         when String then %{'#{val}'}
         when true then '1'
         when false then '0'
@@ -224,5 +262,6 @@ module ZeevexCluster::Coordinator
       Time.now.utc
     end
 
+    class Literal < String; end
   end
 end
