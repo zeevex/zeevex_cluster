@@ -22,7 +22,7 @@ module ZeevexCluster::Coordinator
                                      :reconnect => true)
     end
 
-    # TODO: handle upsert when old row is expires
+    # TODO: handle upsert when old row is expired
     def add(key, value, options = {})
       key = to_key(key)
       value = serialize_value(value, options[:raw])
@@ -33,7 +33,8 @@ module ZeevexCluster::Coordinator
       # duplicate key, probably
       case e.error_number
         # duplicate key
-        when 1062 then false
+        when 1062
+          false
         else raise "Unhandled mysql error: #{e.errno} #{e.message}"
       end
     rescue StandardError
@@ -69,7 +70,7 @@ module ZeevexCluster::Coordinator
       expiration = options.fetch(:expiration, @expiration)
 
       newval = serialize_value(yield(deserialize_value(orig_row[:value], options[:raw])), options[:raw])
-      res = do_update_row(orig_row, :value => newval)
+      res = do_update_row(simple_cond(orig_row), :value => newval)
       case res
         when false then false
         when true then true
@@ -129,10 +130,33 @@ module ZeevexCluster::Coordinator
       res.count == 0 ? nil : res.first
     end
 
+    def simple_cond(row)
+      extract_keys row, :keyname, :lock_version
+    end
+
+    def make_comparison(trip)
+      trip = case trip.count
+               when 1 then [trip[0], "IS NOT", nil]
+               when 2 then [trip[0], "=", trip[1]]
+               when 3 then trip
+               else raise "Must have 1-3 arguments"
+             end
+      %{#{qcol trip[0]} #{trip[1]} #{qval trip[2]}}
+    end
+
+    def make_conditions(cond)
+      case cond
+        when String then cond
+        when Array then cond.map {|trip| make_comparison(trip) }.join(" AND ")
+        when Hash then cond.map {|(k,v)| make_comparison([k, v].flatten) }.join(" AND ")
+        else raise "Unknown condition format: #{cond.inspect}"
+      end
+    end
+
     # mysql get
-    def do_update_row(row, newattrvals)
-      key = row[:keyname]
-      conditions = %{WHERE keyname = #{qval key} and lock_version = #{row[:lock_version]}}
+    def do_update_row(quals, newattrvals)
+      quals[:keyname] or raise "Must specify at least the key in an update"
+      conditions = "WHERE " + make_conditions(quals)
       updates = newattrvals.map do |(key, val)|
         "#{qcol key} = #{qval val}"
       end
@@ -141,6 +165,15 @@ module ZeevexCluster::Coordinator
       puts "STMT = [#{statement}]"
       res = @client.query statement
       @client.affected_rows == 0 ? false : true
+    end
+
+    #
+    # extract a hash with a subset of keys
+    #
+    def extract_keys(src, *keys)
+      hash = src.class.new
+      Array(keys).flatten.each { |k| hash[k] = src[k] if src.has_key?(k) }
+      hash
     end
 
     # FIXME
