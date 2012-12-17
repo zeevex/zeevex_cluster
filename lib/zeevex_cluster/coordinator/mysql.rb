@@ -14,6 +14,7 @@ module ZeevexCluster::Coordinator
     def initialize(options = {})
       super
       @table = @options[:table] || 'kvstore'
+      @logger = @options[:logger] || Logger.new(STDOUT)
       @client ||= Mysql2::Client.new(:host => options[:server] || 'localhost',
                                      :port => options[:port] | 3306,
                                      :database => options[:database] || 'zcluster',
@@ -31,7 +32,7 @@ module ZeevexCluster::Coordinator
       key = to_key(key)
       value = serialize_value(value, options[:raw])
       query %{INSERT INTO #@table (keyname, value, created_at, lock_version)
-                      values (#{qval key}, #{qval value}, #{now}, lock_version + 1);}
+                      values (#{qval key}, #{qval value}, #{qnow}, lock_version + 1);}
       @client.affected_rows == 1
     rescue Mysql2::Error => e
       # duplicate key, probably
@@ -49,7 +50,7 @@ module ZeevexCluster::Coordinator
       key = to_key(key)
       value = serialize_value(value, options[:raw])
       query %{INSERT INTO #@table (keyname, value, created_at)
-                            values (#{qval key}, #{qval value}, #{now})
+                            values (#{qval key}, #{qval value}, #{qnow})
                            ON DUPLICATE KEY UPDATE value=#{qval value}, lock_version=lock_version + 1;}
       @client.affected_rows == 1
     rescue ::Mysql2::Error
@@ -68,8 +69,8 @@ module ZeevexCluster::Coordinator
     def cas(key, options = {})
       key = to_key(key)
 
-      orig_row = do_get_first(key)
-      return nil if orig_row.nil?
+      orig_row = do_get_first(key, :ignore_expiration => true)
+      return nil unless orig_row
 
       expiration = options.fetch(:expiration, @expiration)
 
@@ -127,7 +128,7 @@ module ZeevexCluster::Coordinator
       conditions = []
       conditions << %{#{qcol 'keyname'} = #{qval key}}
       unless options[:ignore_expiration]
-        conditions << %{(#{qcol 'expires_at'} IS NULL or #{qcol 'expires_at'} < NOW())}
+        conditions << %{(#{qcol 'expires_at'} IS NULL or #{qcol 'expires_at'} < #{qnow})}
       end
       query(%{SELECT * from #@table where #{conditions.join(' AND ')};})[:resultset]
     end
@@ -170,13 +171,22 @@ module ZeevexCluster::Coordinator
       updates << "lock_version = lock_version + 1"
       statement = %{UPDATE #@table SET #{updates.join(", ")} #{conditions};}
       res = query statement
-      @client.affected_rows == 0 ? false : true
+      res[:affected_rows] == 0 ? false : true
+    end
+
+    def clear_expired_rows
+      @client.query %{DELETE FROM #@table WHERE expires_at < #{qnow};}
+    rescue
+      logger.error "Error clearing expired rows: #{$!.inspect} #{$!.message}"
     end
 
     def query(statement, options = {})
+      unless options[:ignore_expiration]
+        clear_expired_rows
+      end
       logger.debug "STMT = [#{statement}]"
       res = @client.query statement, options
-      {:result => res, :affected_rows => @client.affected_rows, :last_id => @client.last_id}
+      {:resultset => res, :affected_rows => @client.affected_rows, :last_id => @client.last_id}
     end
 
     #
@@ -206,8 +216,12 @@ module ZeevexCluster::Coordinator
       end
     end
 
+    def qnow
+      qval now
+    end
+
     def now
-      qval Time.now.utc
+      Time.now.utc
     end
 
   end

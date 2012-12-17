@@ -12,4 +12,6 @@ require 'mysql2'
                                :database => 'zcluster',
                                :username => 'zcluster',
                                :password => 'zclusterp',
-                               :reconnect => true)
+                               :reconnect => true,
+                               :symbolize_keys => true,
+                               :database_timezone => :utc)
