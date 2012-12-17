@@ -20,7 +20,7 @@ class ZeevexCluster::Strategy::Cas < ZeevexCluster::Strategy::Base
       @server = ZeevexCluster::Coordinator.create(coordinator_type,
                                                   {:server     => options[:server],
                                                    :port       => options[:port],
-                                                   :expiration => @stale_time}.merge(options[:coordinator_options]))
+                                                   :expiration => @stale_time}.merge(options[:coordinator_options] || {}))
     end
   end
 

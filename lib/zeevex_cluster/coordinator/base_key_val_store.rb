@@ -69,6 +69,10 @@ class ZeevexCluster::Coordinator::BaseKeyValStore
     raw ? str : @serializer.deserialize(str)
   end
 
+  def is_raw?(options)
+    (@options && @options[:raw]) || (options && options[:raw])
+  end
+
   def to_key(key)
     if @options[:namespace]
       "#{@options[:namespace]}:#{key}"

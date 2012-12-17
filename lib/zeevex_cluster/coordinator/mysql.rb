@@ -31,7 +31,7 @@ module ZeevexCluster::Coordinator
     # TODO: handle upsert when old row is expired
     def add(key, value, options = {})
       key = to_key(key)
-      value = serialize_value(value, options[:raw])
+      value = serialize_value(value, is_raw?(options))
       res = do_insert_row(:keyname => key, :value => value)
       res[:affected_rows] == 1
     rescue Mysql2::Error => e
@@ -48,7 +48,7 @@ module ZeevexCluster::Coordinator
 
     def set(key, value, options = {})
       key = to_key(key)
-      value = serialize_value(value, options[:raw])
+      value = serialize_value(value, is_raw?(options))
       row = {:keyname => key, :value => value}
       row[:expires_at] = now + options[:expiration] if options[:expiration]
       res = do_upsert_row(row)
@@ -74,7 +74,7 @@ module ZeevexCluster::Coordinator
 
       expiration = options.fetch(:expiration, @expiration)
 
-      newval = serialize_value(yield(deserialize_value(orig_row[:value], options[:raw])), options[:raw])
+      newval = serialize_value(yield(deserialize_value(orig_row[:value], is_raw?(options))), is_raw?(options))
       updates = {:value => newval}
       updates[:expires_at] = now + options[:expiration] if options[:expiration]
       res = do_update_row(simple_cond(orig_row), updates)
@@ -95,7 +95,7 @@ module ZeevexCluster::Coordinator
       row = do_get_first key
       return nil if row.nil?
 
-      if !options[:raw]
+      if !is_raw?(options)
         deserialize_value(row[:value])
       else
         row[:value]

@@ -16,7 +16,7 @@ module ZeevexCluster::Coordinator
     end
 
     def add(key, value, options = {})
-      if @client.setnx(to_key(key), serialize_value(value, options[:raw]))
+      if @client.setnx(to_key(key), serialize_value(value, is_raw?(options)))
         @client.expire to_key(key), options.fetch(:expiration, @expiration)
         true
       else
@@ -29,7 +29,7 @@ module ZeevexCluster::Coordinator
     def set(key, value, options = {})
       status( @client.setex(to_key(key),
                             options.fetch(:expiration, @expiration),
-                            serialize_value(value, options[:raw])) ) == STATUS_OK
+                            serialize_value(value, is_raw?(options))) ) == STATUS_OK
     rescue ::Redis::CannotConnectError
       raise ZeevexCluster::Coordinator::ConnectionError.new 'Connection error', $!
     end
@@ -52,7 +52,7 @@ module ZeevexCluster::Coordinator
 
       expiration = options.fetch(:expiration, @expiration)
 
-      newval = serialize_value(yield(deserialize_value(orig_val, options[:raw])), options[:raw])
+      newval = serialize_value(yield(deserialize_value(orig_val, is_raw?(options))), is_raw?(options))
       res = @client.multi do
         if expiration
           @client.setex key, expiration, newval
@@ -73,7 +73,7 @@ module ZeevexCluster::Coordinator
     end
 
     def get(key)
-      deserialize_value(@client.get(to_key(key)), options[:raw])
+      deserialize_value(@client.get(to_key(key)), is_raw?(options))
     rescue ::Redis::CannotConnectError
       raise ZeevexCluster::Coordinator::ConnectionError.new 'Connection error', $!
     end
