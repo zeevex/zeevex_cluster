@@ -61,12 +61,12 @@ class ZeevexCluster::Coordinator::BaseKeyValStore
 
   protected
 
-  def serialize_value(token)
-    @serializer.serialize(token)
+  def serialize_value(obj, raw = false)
+    raw ? obj : @serializer.serialize(obj)
   end
 
-  def deserialize_value(tokenstr)
-    @serializer.deserialize(tokenstr)
+  def deserialize_value(str, raw = false)
+    raw ? str : @serializer.deserialize(str)
   end
 
   def to_key(key)

@@ -17,13 +17,15 @@ module ZeevexCluster::Coordinator
     end
 
     def add(key, value, options = {})
-      status( @client.add(to_key(key), serialize_value(value), options.fetch(:expiration, @expiration), raw?) ) == STORED
+      status( @client.add(to_key(key), serialize_value(value, options[:raw]),
+                          options.fetch(:expiration, @expiration), raw?) ) == STORED
     rescue MemCache::MemCacheError
       raise ZeevexCluster::Coordinator::ConnectionError.new 'Connection error', $!
     end
 
     def set(key, value, options = {})
-      status( @client.set(to_key(key), serialize_value(value), options.fetch(:expiration, @expiration), raw?) ) == STORED
+      status( @client.set(to_key(key), serialize_value(value, options[:raw]),
+                          options.fetch(:expiration, @expiration), raw?) ) == STORED
     rescue MemCache::MemCacheError
       raise ZeevexCluster::Coordinator::ConnectionError.new 'Connection error', $!
     end
@@ -39,7 +41,7 @@ module ZeevexCluster::Coordinator
     #
     def cas(key, options = {}, &block)
       res = @client.cas(to_key(key), options.fetch(:expiration, @expiration), raw?) do |inval|
-        serialize_value(yield(deserialize_value(inval)))
+        serialize_value(yield(deserialize_value(inval, options[:raw])), options[:raw])
       end
       case status(res)
         when nil then nil
@@ -53,15 +55,19 @@ module ZeevexCluster::Coordinator
       raise ZeevexCluster::Coordinator::ConnectionError.new 'Connection error', $!
     end
 
-    def get(key)
+    def get(key, options = {})
       val = @client.get(to_key(key), raw?)
-      val ? deserialize_value(val) : val
+      if val && !options[:raw]
+        deserialize_value(val)
+      else
+        val
+      end
     rescue MemCache::MemCacheError
       raise ZeevexCluster::Coordinator::ConnectionError.new 'Connection error', $!
     end
 
     def append(key, val, options = {})
-      val = serialize_value val
+      val = serialize_value(val, options[:raw])
       key = to_key(key)
       status( @client.append(key, val) ) == STORED  ||
           status( @client.add(key, val, options.fetch(:expiration, @expiration), true) ) == STORED ||
@@ -71,13 +77,17 @@ module ZeevexCluster::Coordinator
     end
 
     def prepend(key, val, options = {})
-      val = serialize_value val
+      val = serialize_value(val, options[:raw])
       key = to_key(key)
       status( @client.prepend(key, val) ) == STORED  ||
           status( @client.add(key, val, options.fetch(:expiration, @expiration), true) ) == STORED ||
           status( @client.prepend(key, val) ) == STORED
     rescue MemCache::MemCacheError
       raise ZeevexCluster::Coordinator::ConnectionError.new 'Connection error', $!
+    end
+
+    def push_to_queue(key, object, options = {})
+
     end
 
     protected

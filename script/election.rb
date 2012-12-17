@@ -8,7 +8,8 @@ ctype = ARGV[0] || 'memcached'
 backend_options = case ctype
                     when 'memcached' then {:server => '127.0.0.1', :port => 11212}
                     when 'redis'     then {:server => '127.0.0.1', :port => 6379}
-                    else raise 'Must be memcached or redis'
+                    when 'mysql'     then {:server => '127.0.0.1', :port => 6379}
+                    else raise 'Must be memcached or redis or mysql'
                   end.
     merge({:coordinator_type => ctype})
 
