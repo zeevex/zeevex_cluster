@@ -136,9 +136,6 @@ module ZeevexCluster::Coordinator
       conditions = []
       conditions << %{#{qcol 'keyname'} = #{qval key}}
       conditions << %{#{qcol 'namespace'} = #{qval @namespace}}
-      #unless options[:ignore_expiration]
-      #  conditions << %{(#{qcol 'expires_at'} IS NULL or #{qcol 'expires_at'} < #{qnow})}
-      #end
       query(%{SELECT * from #@table where #{conditions.join(' AND ')};})[:resultset]
     end
 
@@ -153,10 +150,10 @@ module ZeevexCluster::Coordinator
 
     def make_comparison(trip)
       trip = case trip.count
-               when 1 then [trip[0], "IS NOT", nil]
-               when 2 then [trip[0], "=", trip[1]]
+               when 1 then [trip[0], 'IS NOT', nil]
+               when 2 then [trip[0], '=', trip[1]]
                when 3 then trip
-               else raise "Must have 1-3 arguments"
+               else raise 'Must have 1-3 arguments'
              end
       %{#{qcol trip[0]} #{trip[1]} #{qval trip[2]}}
     end
@@ -164,46 +161,46 @@ module ZeevexCluster::Coordinator
     def make_conditions(cond)
       case cond
         when String then cond
-        when Array then cond.map {|trip| make_comparison(trip) }.join(" AND ")
-        when Hash then cond.map {|(k,v)| make_comparison([k, v].flatten) }.join(" AND ")
+        when Array then cond.map {|trip| make_comparison(trip) }.join(' AND ')
+        when Hash then cond.map {|(k,v)| make_comparison([k, v].flatten) }.join(' AND ')
         else raise "Unknown condition format: #{cond.inspect}"
       end
     end
 
     def do_insert_row(row, options = {})
-      (row[:keyname] && row[:value]) or raise ArgumentError, "Must specify at least key and value"
+      (row[:keyname] && row[:value]) or raise ArgumentError, 'Must specify at least key and value'
       now = self.now
       row = row.merge(:namespace => @namespace)
       row = {:created_at => now, :updated_at => now}.merge(row) unless options[:skip_timestamps]
       row = {:expires_at => now + options[:expiration]}.merge(row) if options[:expiration]
-      query %{INSERT INTO #@table (#{row.keys.map {|k| qcol(k)}.join(", ")})
-                           values (#{row.values.map {|k| qval(k)}.join(", ")});}
+      query %{INSERT INTO #@table (#{row.keys.map {|k| qcol(k)}.join(', ')})
+                           values (#{row.values.map {|k| qval(k)}.join(', ')});}
     end
 
     def do_upsert_row(row, options = {})
-      (row[:keyname] && row[:value]) or raise ArgumentError, "Must specify at least key and value"
+      (row[:keyname] && row[:value]) or raise ArgumentError, 'Must specify at least key and value'
       now = self.now
       row = row.merge(:namespace => @namespace)
       row = {:created_at => now, :updated_at => now}.merge(row) unless options[:skip_timestamps]
       row = {:expires_at => now + options[:expiration]}.merge(row) if options[:expiration]
       updatable_row = trim_hash(row, [:created_at, :keyname, :lock_version]).merge(
-          :lock_version => Literal.new("lock_version + 1"))
-      query %{INSERT INTO #@table (#{row.keys.map {|k| qcol(k)}.join(", ")})
-                           values (#{row.values.map {|k| qval(k)}.join(", ")})
+          :lock_version => Literal.new('lock_version + 1'))
+      query %{INSERT INTO #@table (#{row.keys.map {|k| qcol(k)}.join(', ')})
+                           values (#{row.values.map {|k| qval(k)}.join(', ')})
               ON DUPLICATE KEY UPDATE lock_version = lock_version + 1,
-                              #{updatable_row.map {|(k,v)| "#{qcol k} = #{qval v}"}.join(", ")};}
+                              #{updatable_row.map {|(k,v)| "#{qcol k} = #{qval v}"}.join(', ')};}
     end
 
     def do_update_row(quals, newattrvals, options = {})
-      quals[:keyname] or raise "Must specify at least the key in an update"
+      quals[:keyname] or raise 'Must specify at least the key in an update'
       conditions = "WHERE " + make_conditions(quals)
       newattrvals = {:updated_at => now}.merge(newattrvals) unless options[:skip_timestamps]
       newattrvals = {:expires_at => now + options[:expiration]}.merge(newattrvals) if options[:expiration]
-      newattrvals = newattrvals.merge(:namespace => @namespace, :lock_version => Literal.new("lock_version + 1"))
+      newattrvals = newattrvals.merge(:namespace => @namespace, :lock_version => Literal.new('lock_version + 1'))
       updates = newattrvals.map do |(key, val)|
         "#{qcol key} = #{qval val}"
       end
-      statement = %{UPDATE #@table SET #{updates.join(", ")} #{conditions};}
+      statement = %{UPDATE #@table SET #{updates.join(', ')} #{conditions};}
       res = query statement
       res[:affected_rows] == 0 ? false : true
     end
