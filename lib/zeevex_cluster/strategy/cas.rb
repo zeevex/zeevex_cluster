@@ -286,6 +286,7 @@ class ZeevexCluster::Strategy::Cas < ZeevexCluster::Strategy::Base
       got_lock(me)
       return true
     elsif res == nil
+      failed_lock(me, current)
       if server.add(key, me)
         logger.debug 'CAS: added frist post!'
         got_lock(me)
