@@ -36,7 +36,8 @@ module ZeevexCluster::Coordinator
     def add(key, value, options = {})
       key = to_key(key)
       value = serialize_value(value, is_raw?(options))
-      res = do_insert_row(:keyname => key, :value => value)
+      res = do_insert_row({:keyname => key, :value => value, :namespace => @namespace},
+                           :expiration => options.fetch(:expiration, @expiration))
       res[:affected_rows] == 1
     rescue Mysql2::Error => e
       case e.error_number
@@ -55,8 +56,8 @@ module ZeevexCluster::Coordinator
       key = to_key(key)
       value = serialize_value(value, is_raw?(options))
       row = {:keyname => key, :value => value}
-      row[:expires_at] = now + options[:expiration] if options[:expiration]
-      res = do_upsert_row(row)
+
+      res = do_upsert_row(row, :expiration => options.fetch(:expiration, @expiration))
       res[:affected_rows] == 1
     rescue ::Mysql2::Error
       raise ZeevexCluster::Coordinator::ConnectionError.new 'Connection error', $!
@@ -81,8 +82,7 @@ module ZeevexCluster::Coordinator
 
       newval = serialize_value(yield(deserialize_value(orig_row[:value], is_raw?(options))), is_raw?(options))
       updates = {:value => newval}
-      updates[:expires_at] = now + options[:expiration] if options[:expiration]
-      res = do_update_row(simple_cond(orig_row), updates)
+      res = do_update_row(simple_cond(orig_row), updates, :expiration => options.fetch(:expiration, @expiration))
       case res
         when false then false
         when true then true
@@ -136,9 +136,9 @@ module ZeevexCluster::Coordinator
       conditions = []
       conditions << %{#{qcol 'keyname'} = #{qval key}}
       conditions << %{#{qcol 'namespace'} = #{qval @namespace}}
-      unless options[:ignore_expiration]
-        conditions << %{(#{qcol 'expires_at'} IS NULL or #{qcol 'expires_at'} < #{qnow})}
-      end
+      #unless options[:ignore_expiration]
+      #  conditions << %{(#{qcol 'expires_at'} IS NULL or #{qcol 'expires_at'} < #{qnow})}
+      #end
       query(%{SELECT * from #@table where #{conditions.join(' AND ')};})[:resultset]
     end
 
@@ -175,6 +175,7 @@ module ZeevexCluster::Coordinator
       now = self.now
       row = row.merge(:namespace => @namespace)
       row = {:created_at => now, :updated_at => now}.merge(row) unless options[:skip_timestamps]
+      row = {:expires_at => now + options[:expiration]}.merge(row) if options[:expiration]
       query %{INSERT INTO #@table (#{row.keys.map {|k| qcol(k)}.join(", ")})
                            values (#{row.values.map {|k| qval(k)}.join(", ")});}
     end
@@ -184,6 +185,7 @@ module ZeevexCluster::Coordinator
       now = self.now
       row = row.merge(:namespace => @namespace)
       row = {:created_at => now, :updated_at => now}.merge(row) unless options[:skip_timestamps]
+      row = {:expires_at => now + options[:expiration]}.merge(row) if options[:expiration]
       updatable_row = trim_hash(row, [:created_at, :keyname, :lock_version]).merge(
           :lock_version => Literal.new("lock_version + 1"))
       query %{INSERT INTO #@table (#{row.keys.map {|k| qcol(k)}.join(", ")})
@@ -196,6 +198,7 @@ module ZeevexCluster::Coordinator
       quals[:keyname] or raise "Must specify at least the key in an update"
       conditions = "WHERE " + make_conditions(quals)
       newattrvals = {:updated_at => now}.merge(newattrvals) unless options[:skip_timestamps]
+      newattrvals = {:expires_at => now + options[:expiration]}.merge(newattrvals) if options[:expiration]
       newattrvals = newattrvals.merge(:namespace => @namespace, :lock_version => Literal.new("lock_version + 1"))
       updates = newattrvals.map do |(key, val)|
         "#{qcol key} = #{qval val}"

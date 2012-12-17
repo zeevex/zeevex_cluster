@@ -285,8 +285,8 @@ class ZeevexCluster::Strategy::Cas < ZeevexCluster::Strategy::Base
       run_hook hook if hook && res
       got_lock(me)
       return true
-    elsif res == nil
-      failed_lock(me, current)
+    elsif res.nil?
+      failed_lock(me, nil)
       if server.add(key, me)
         logger.debug 'CAS: added frist post!'
         got_lock(me)
