@@ -13,11 +13,12 @@ module ZeevexCluster::Coordinator
 
     def initialize(options = {})
       super
-      @table = 'kvstore'
-      @client ||= Mysql2::Client.new(:host => 'localhost',
-                                     :database => 'zcluster',
-                                     :username => 'zcluster',
-                                     :password => 'zclusterp',
+      @table = @options[:table] || 'kvstore'
+      @client ||= Mysql2::Client.new(:host => options[:server] || 'localhost',
+                                     :port => options[:port] | 3306,
+                                     :database => options[:database] || 'zcluster',
+                                     :username => options[:username],
+                                     :password => options[:password],
                                      :reconnect => true)
     end
 
@@ -164,22 +165,5 @@ module ZeevexCluster::Coordinator
       qval Time.now.utc
     end
 
-    STORED     = 'STORED'
-    EXISTS     = 'EXISTS'
-    NOT_STORED = 'NOT_STORED'
-    NOT_FOUND  = 'NOT_FOUND'
-
-    def status(response)
-      case response
-        when nil, true, false then response
-        when String then response.chomp
-        else
-          raise ArgumentError, "This should only be called on results from cas, add, set, etc. - got result #{response.inspect}"
-      end
-    end
-
-    def raw?
-      true
-    end
   end
 end

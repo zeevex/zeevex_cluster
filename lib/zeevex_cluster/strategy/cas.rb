@@ -18,9 +18,9 @@ class ZeevexCluster::Strategy::Cas < ZeevexCluster::Strategy::Base
     unless (@server = options[:coordinator])
       coordinator_type = options[:coordinator_type] || 'memcached'
       @server = ZeevexCluster::Coordinator.create(coordinator_type,
-                                                  :server     => options[:server],
-                                                  :port       => options[:port],
-                                                  :expiration => @stale_time)
+                                                  {:server     => options[:server],
+                                                   :port       => options[:port],
+                                                   :expiration => @stale_time}.merge(options[:coordinator_options]))
     end
   end
 
