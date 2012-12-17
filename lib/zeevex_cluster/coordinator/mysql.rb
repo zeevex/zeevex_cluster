@@ -94,16 +94,21 @@ module ZeevexCluster::Coordinator
       raise ZeevexCluster::Coordinator::ConnectionError.new 'Connection error', $!
     end
 
-    # TODO
     def append(key, val, options = {})
-      raise NotImplementedError
+      @client.query %{UPDATE #@table set value = CONCAT(value, #{qval value}),
+                      lock_version = lock_version + 1
+                      where #{qcol keyname} = #{qval key};}
+      @client.affected_rows == 1
     rescue ::Mysql2::Error
       raise ZeevexCluster::Coordinator::ConnectionError.new 'Connection error', $!
     end
 
     # TODO
     def prepend(key, val, options = {})
-      raise NotImplementedError
+      @client.query %{UPDATE #@table set value = CONCAT(#{qval value}, value),
+                      lock_version = lock_version + 1
+                      where #{qcol keyname} = #{qval key};}
+      @client.affected_rows == 1
     rescue ::Mysql2::Error
       raise ZeevexCluster::Coordinator::ConnectionError.new 'Connection error', $!
     end
