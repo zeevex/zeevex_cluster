@@ -36,7 +36,7 @@ class ZeevexCluster::Serializer::JsonHash
   end
 
   def deserialize(str)
-    parsed = JSON.parse(str)
+    parsed = JSON.parse(str, :symbolize_names => true, :object_class => IndifferentHash)
     case parsed
       when Hash then untranslate_hash(parsed)
       else parsed
@@ -51,5 +51,15 @@ class ZeevexCluster::Serializer::JsonHash
             else obj
           end
     JSON.dump(obj)
+  end
+
+  class IndifferentHash < Hash
+    def fetch(key, defaultval = nil)
+      super(key.to_sym, defaultval)
+    end
+
+    def [](key)
+      super(key.to_sym)
+    end
   end
 end

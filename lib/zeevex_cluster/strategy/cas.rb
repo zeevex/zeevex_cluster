@@ -112,7 +112,7 @@ class ZeevexCluster::Strategy::Cas < ZeevexCluster::Strategy::Base
     list = server.get(key('members')) || make_member_list
     members = []
     list[:members].values.each do |v|
-      members << v['nodename'] unless v['timestamp'].utc < stale_point
+      members << v[:nodename] unless v[:timestamp].utc < stale_point
     end
     members
   end
@@ -339,7 +339,7 @@ class ZeevexCluster::Strategy::Cas < ZeevexCluster::Strategy::Base
       res = server.cas(memberlist_key) do |hash|
         hash[:members] ||= {}
         hash[:members].keys.each do |key|
-          hash[:members].delete(key) if hash[:members][key]['timestamp'] < stale_point
+          hash[:members].delete(key) if hash[:members][key][:timestamp] < stale_point
         end
         hash[:members][@nodename] = me
         hash
