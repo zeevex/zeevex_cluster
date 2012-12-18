@@ -6,3 +6,6 @@ begin
 require 'zeevex_cluster/primitives'
 rescue LoadError
 end
+
+$s = ZeevexCluster::Serializer::JsonHash.new
+$h = {:a_at => Time.now, :b => [Time.now], :c => {:timestamp => Time.now}}

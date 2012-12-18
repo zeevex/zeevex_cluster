@@ -1,4 +1,5 @@
 require 'json'
+require 'json/add/core'
 require 'date'
 
 require 'zeevex_cluster/serializer'
@@ -19,7 +20,7 @@ class ZeevexCluster::Serializer::JsonHash
     end
     hash = {}
     parsed.each do |(key, val)|
-      val = Time.at(val).utc if is_time_field(key, val)
+      # val = Time.at(val).utc if is_time_field(key, val)
       hash[key.to_sym] = val
     end
     hash
@@ -28,9 +29,9 @@ class ZeevexCluster::Serializer::JsonHash
   def translate_hash(hash)
     raise ArgumentError, 'Must be a hash' unless hash.is_a?(Hash)
     hash = hash.clone
-    hash.keys.each do |key|
-      hash[key] = hash[key].utc.to_f if is_time_field(key, hash[key])
-    end
+    #hash.keys.each do |key|
+    #  hash[key] = hash[key].utc.to_f if is_time_field(key, hash[key])
+    #end
     hash
   end
 
