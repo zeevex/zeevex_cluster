@@ -77,8 +77,8 @@ module ZeevexCluster::Coordinator
       value = serialize_value(value, is_raw?(options))
       row = {:keyname => key, :value => value}
 
-      res = do_upsert_row(row, :expiration => options.fetch(:expiration, @expiration))
-      res[:affected_rows] == 1
+      res = do_upsert_row(row, :expiration => options.fetch(:expiration, @expiration), :skip_locking => true)
+      res[:success]
     rescue ::Mysql2::Error
       raise ZeevexCluster::Coordinator::ConnectionError.new 'Connection error', $!
     end
@@ -193,8 +193,10 @@ module ZeevexCluster::Coordinator
       row = row.merge(:namespace => @namespace)
       row = {:created_at => now, :updated_at => now}.merge(row) unless options[:skip_timestamps]
       row = {:expires_at => now + options[:expiration]}.merge(row) if options[:expiration]
-      query %{INSERT INTO #@table (#{row.keys.map {|k| qcol(k)}.join(', ')})
+      res = query %{INSERT INTO #@table (#{row.keys.map {|k| qcol(k)}.join(', ')})
                            values (#{row.values.map {|k| qval(k)}.join(', ')});}
+      res[:success] = (res[:affected_rows] == 1)
+      res
     end
 
     def do_upsert_row(row, options = {})
@@ -203,20 +205,32 @@ module ZeevexCluster::Coordinator
       row = row.merge(:namespace => @namespace)
       row = {:created_at => now, :updated_at => now}.merge(row) unless options[:skip_timestamps]
       row = {:expires_at => now + options[:expiration]}.merge(row) if options[:expiration]
-      updatable_row = trim_hash(row, [:created_at, :keyname, :lock_version]).merge(
-          :lock_version => Literal.new('lock_version + 1'))
-      query %{INSERT INTO #@table (#{row.keys.map {|k| qcol(k)}.join(', ')})
+      updatable_row = trim_hash(row, [:created_at, :keyname, :lock_version])
+      updatable_row.merge!(:lock_version => Literal.new('lock_version + 1')) unless options[:skip_locking]
+
+      res = query %{INSERT INTO #@table (#{row.keys.map {|k| qcol(k)}.join(', ')})
                            values (#{row.values.map {|k| qval(k)}.join(', ')})
-              ON DUPLICATE KEY UPDATE lock_version = lock_version + 1,
+              ON DUPLICATE KEY UPDATE
                               #{updatable_row.map {|(k,v)| "#{qcol k} = #{qval v}"}.join(', ')};}
+
+      # see http://dev.mysql.com/doc/refman/5.0/en/insert-on-duplicate.html for WTF affected_rows
+      # overloading
+      res[:success] = [1,2].include?(res[:affected_rows])
+      res[:upsert_type] = case res[:affected_rows]
+                            when 1 then :insert
+                            when 2 then :update
+                            else :none
+                          end
+      res
     end
 
     def do_update_row(quals, newattrvals, options = {})
       quals[:keyname] or raise 'Must specify at least the key in an update'
-      conditions = "WHERE " + make_conditions(quals)
+      conditions = 'WHERE ' + make_conditions(quals)
       newattrvals = {:updated_at => now}.merge(newattrvals) unless options[:skip_timestamps]
       newattrvals = {:expires_at => now + options[:expiration]}.merge(newattrvals) if options[:expiration]
-      newattrvals = newattrvals.merge(:namespace => @namespace, :lock_version => Literal.new('lock_version + 1'))
+      newattrvals = newattrvals.merge(:namespace => @namespace)
+      newattrvals.merge!({:lock_version => Literal.new('lock_version + 1')}) unless options[:skip_locking]
       updates = newattrvals.map do |(key, val)|
         "#{qcol key} = #{qval val}"
       end
@@ -240,6 +254,7 @@ module ZeevexCluster::Coordinator
       unless options[:ignore_expiration]
         clear_expired_rows
       end
+      logger.debug "[#{statement}]"
       res = @client.query statement, options
       {:resultset => res, :affected_rows => @client.affected_rows, :last_id => @client.last_id}
     rescue ::Mysql2::Error
