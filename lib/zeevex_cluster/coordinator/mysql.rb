@@ -270,19 +270,24 @@ module ZeevexCluster::Coordinator
       logger.error %{Mysql exception errno=#{e.errno}, sql_state=#{e.sql_state}, message=#{e.message}, statement=[#{statement || 'UNKNOWN'}]\n#{e.backtrace.join("\n")}}
     end
 
+    def quote_string(s)
+      s.gsub(/\\/, '\&\&').gsub(/'/, "''") # ' (for ruby-mode)
+    end
+
     # FIXME
     def qcol(colname)
-      %{#{colname}}
+      %{`#{colname}`}
     end
 
     # FIXME
     def qval(val)
       case val
         when Literal then val
-        when String then %{'#{val}'}
+        when String then %{'#{quote_string val}'}
         when true then '1'
         when false then '0'
         when nil then 'NULL'
+        when Bignum then val.to_s('F')
         when Numeric then val.to_s
         when Time then qval(val.utc.strftime('%Y-%m-%d-%H:%M:%S'))
         else val
