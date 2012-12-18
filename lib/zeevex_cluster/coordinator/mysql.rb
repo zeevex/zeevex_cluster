@@ -52,7 +52,12 @@ module ZeevexCluster::Coordinator
                                      :database_timezone => :utc)
     end
 
-    # TODO: handle upsert when old row is expired
+    #
+    # Add the value for a key to the DB if there is no existing entry
+    # Serializes unless :raw => true
+    #
+    # Returns true if key was added, false if key already had a value
+    #
     def add(key, value, options = {})
       key = to_key(key)
       value = serialize_value(value, is_raw?(options))
@@ -72,6 +77,9 @@ module ZeevexCluster::Coordinator
       raise ZeevexCluster::Coordinator::ConnectionError.new 'Connection error', $!
     end
 
+    #
+    # Set the value for a key, serializing unless :raw => true
+    #
     def set(key, value, options = {})
       key = to_key(key)
       value = serialize_value(value, is_raw?(options))
@@ -83,6 +91,9 @@ module ZeevexCluster::Coordinator
       raise ZeevexCluster::Coordinator::ConnectionError.new 'Connection error', $!
     end
 
+    #
+    # Delete key from database; true if key existed beforehand
+    #
     def delete(key, options = {})
       res = do_delete_row(:keyname => key)
       res[:success]
@@ -124,7 +135,9 @@ module ZeevexCluster::Coordinator
       raise
     end
 
-
+    #
+    # Fetch the value for a key, deserializing unless :raw => true
+    #
     def get(key, options = {})
       key = to_key(key)
       row = do_get_first key
@@ -139,6 +152,8 @@ module ZeevexCluster::Coordinator
       raise ZeevexCluster::Coordinator::ConnectionError.new 'Connection error', $!
     end
 
+    # append string vlaue to an entry
+    # does NOT serialize
     def append(key, str, options = {})
       newval = Literal.new %{CONCAT(value, #{qval str})}
       do_update_row({:keyname => key}, {:value => newval})
@@ -146,7 +161,8 @@ module ZeevexCluster::Coordinator
       raise ZeevexCluster::Coordinator::ConnectionError.new 'Connection error', $!
     end
 
-    # TODO
+    # prepend string value to an entry
+    # does NOT serialize
     def prepend(key, str, options = {})
       newval = Literal.new %{CONCAT(#{qval str}, value)}
       do_update_row({:keyname => key}, {:value => newval})
@@ -156,7 +172,8 @@ module ZeevexCluster::Coordinator
 
     protected
 
-    # mysql get
+    # mysql get wrapper. returns just the resultset as a list of hashes
+    # which may be nil or empty list if none matched.
     def do_get(key, options = {})
       conditions = []
       conditions << %{#{qcol 'keyname'} = #{qval key}}
@@ -207,10 +224,16 @@ module ZeevexCluster::Coordinator
     def do_upsert_row(row, options = {})
       (row[:keyname] && row[:value]) or raise ArgumentError, 'Must specify at least key and value'
       now = self.now
+
+      ## what values are set if the row is inserted
       row = row.merge(:namespace => @namespace)
       row = {:created_at => now, :updated_at => now}.merge(row) unless options[:skip_timestamps]
-      row = {:expires_at => now + options[:expiration]}.merge(row) if options[:expiration]
-      updatable_row = trim_hash(row, [:created_at, :keyname, :lock_version])
+      row = {:expires_at => now + options[:expiration]}.merge(row)  if options[:expiration]
+
+      ## values updated if row already exists
+      # these columns shouldn't be set on update
+      updatable_row = trim_hash(row, [:created_at, :keyname, :namespace, :lock_version])
+      # update of a row should increment the lock version, rather than setting it
       updatable_row.merge!(:lock_version => Literal.new('lock_version + 1')) unless options[:skip_locking]
 
       res = query %{INSERT INTO #@table (#{row.keys.map {|k| qcol(k)}.join(', ')})
@@ -229,6 +252,9 @@ module ZeevexCluster::Coordinator
       res
     end
 
+    #
+    # note, unlike some of the do_* functions, returns a simple boolean for success
+    #
     def do_update_row(quals, newattrvals, options = {})
       quals[:keyname] or raise 'Must specify at least the key in an update'
       conditions = 'WHERE ' + make_conditions(quals)
@@ -264,6 +290,11 @@ module ZeevexCluster::Coordinator
       logger.error %{Unhandled error in query: #{$!.inspect}\nstatement=[#{statement}]\n#{$!.backtrace.join("\n")}}
     end
 
+    #
+    # chokepoint for *most* queries issued to MySQL, except the one from `clear_expired_rows` as we call it.
+    #
+    # returns a hash containing values returned from mysql2 API
+    #
     def query(statement, options = {})
       unless options[:ignore_expiration]
         clear_expired_rows
@@ -288,6 +319,9 @@ module ZeevexCluster::Coordinator
       hash
     end
 
+    #
+    # return a new hash with a set of keys removed
+    #
     def trim_hash(src, *keys)
       hash = src.class.new
       keys = Array(keys).flatten
@@ -299,16 +333,18 @@ module ZeevexCluster::Coordinator
       logger.error %{Mysql exception errno=#{e.errno}, sql_state=#{e.sql_state}, message=#{e.message}, statement=[#{statement || 'UNKNOWN'}]\n#{e.backtrace.join("\n")}}
     end
 
+    # quote quotes in a quotable string.
     def quote_string(s)
       s.gsub(/\\/, '\&\&').gsub(/'/, "''") # ' (for ruby-mode)
     end
 
-    # FIXME
+    # quote a column name
     def qcol(colname)
       %{`#{colname}`}
     end
 
-    # FIXME
+    # quote a value - takes the quoting/translation style from the Ruby type of the value itself
+    # rather than the column definition as e.g. ActiveRecord might.
     def qval(val)
       case val
         when Literal then val
@@ -323,14 +359,22 @@ module ZeevexCluster::Coordinator
       end
     end
 
+    # quoted time value for now
     def qnow
       qval now
     end
 
+    #
+    # now, as a Time, in UTC
+    #
     def now
       Time.now.utc
     end
 
+    #
+    # class used to indicate a value to be passed to MySQL unquoted; useful for
+    # e.g. arithmetic expressions
+    #
     class Literal < String; end
   end
 end
