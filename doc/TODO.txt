@@ -1,0 +1,10 @@
+
+* Mutex around every method that might have cross-thread access,
+  including:
+    * coordinator objects
+   
+* Clearer policy for cross-thread callbacks
+
+* Separate out membership from leader election
+
+* MongoDB backend
