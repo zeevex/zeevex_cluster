@@ -372,6 +372,18 @@ module ZeevexCluster::Coordinator
     end
 
     #
+    # unlike the base implementation, we don't fold the namespace into the key
+    # we leave that in a separate column
+    #
+    def to_key(key)
+      if @options[:to_key_proc]
+        @options[:to_key_proc].call(key)
+      else
+        key.to_s
+      end
+    end
+
+    #
     # class used to indicate a value to be passed to MySQL unquoted; useful for
     # e.g. arithmetic expressions
     #
