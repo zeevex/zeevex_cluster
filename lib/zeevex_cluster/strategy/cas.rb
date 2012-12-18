@@ -21,6 +21,9 @@ class ZeevexCluster::Strategy::Cas < ZeevexCluster::Strategy::Base
                                                    :port       => options[:port],
                                                    :expiration => @stale_time * 4}.merge(options[:coordinator_options] || {}))
     end
+    unless @server.is_a?(ZeevexCluster::Synchronized)
+      @server = ZeevexCluster.Synchronized(@server)
+    end
   end
 
   def do_i_hold_lock?
