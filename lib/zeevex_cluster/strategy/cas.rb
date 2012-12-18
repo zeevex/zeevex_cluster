@@ -4,7 +4,6 @@ require 'logger'
 
 class ZeevexCluster::Strategy::Cas < ZeevexCluster::Strategy::Base
 
-
   attr_accessor :stale_time, :update_period, :server, :nodename, :cluster_name
 
   SUSPECT_MISSED_UPDATE_COUNT = 3
@@ -108,6 +107,15 @@ class ZeevexCluster::Strategy::Cas < ZeevexCluster::Strategy::Base
     false
   end
 
+  def members
+    list = server.get(key('members')) || make_member_list
+    members = []
+    list[:members].values.each do |v|
+      members << v['nodename']
+    end
+    members
+  end
+
   protected
 
   def spin
@@ -117,6 +125,7 @@ class ZeevexCluster::Strategy::Cas < ZeevexCluster::Strategy::Base
     run_hook :joined_cluster, cluster_name
     while @state == :started
       begin
+        register
         campaign
         if @state == :started
           begin
@@ -160,8 +169,8 @@ class ZeevexCluster::Strategy::Cas < ZeevexCluster::Strategy::Base
      :timestamp   => now}
   end
 
-  def key
-    @key ||= (@options[:cluster_key] || "#{cluster_name}:throne")
+  def key(subkey = 'throne')
+    (@options[:cluster_key] || cluster_name) + ":" + subkey
   end
 
   def is_me?(token)
@@ -294,19 +303,55 @@ class ZeevexCluster::Strategy::Cas < ZeevexCluster::Strategy::Base
       end
     end
 
+    # CAS succeeded so we're the boss
     if res
       got_lock(me)
-      return true
-    end
+      true
 
-    # didn't get it
-    failed_lock(me, current)
-    false
+    # didn't get it, somebody else must be boss
+    else
+      failed_lock(me, current)
+      false
+    end
   rescue ZeevexCluster::Coordinator::ConnectionError
     connection_error
     failed_lock(me, current)
     false
   end
+
+  def make_member_list
+    {:members => {@nodename => my_token}}
+  end
+
+  def register
+    me = my_token
+
+    self_key = self.key('member:' +  @nodename)
+    memberlist_key = self.key('members')
+    server.set(self_key, me) or raise "failed to set #{self_key}"
+
+    res = false
+    retries = 5
+
+    while retries > 0 && res == false
+      res = server.cas(memberlist_key) do |hash|
+        hash[:members] ||= {}
+        hash[:members][@nodename] = me
+        hash
+      end
+      retries -= 1
+    end
+
+    if res.nil?
+      server.add(memberlist_key, {:members => {@nodename => me}})
+    end
+
+    true
+  rescue ZeevexCluster::Coordinator::ConnectionError
+    connection_error
+    false
+  end
+
 
   #
   # has the master gone without updating suspiciously long?

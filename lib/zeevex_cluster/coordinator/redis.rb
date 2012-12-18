@@ -72,7 +72,7 @@ module ZeevexCluster::Coordinator
       raise ZeevexCluster::Coordinator::ConnectionError.new 'Connection error', $!
     end
 
-    def get(key)
+    def get(key, options = {})
       deserialize_value(@client.get(to_key(key)), is_raw?(options))
     rescue ::Redis::CannotConnectError
       raise ZeevexCluster::Coordinator::ConnectionError.new 'Connection error', $!

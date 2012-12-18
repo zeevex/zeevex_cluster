@@ -80,6 +80,10 @@ module ZeevexCluster
       @member
     end
 
+    def members
+      @strategy.respond_to?(:members) ? @strategy.members : [@nodename]
+    end
+
     protected
 
     def hook_observer(hook_name, source, *args)
