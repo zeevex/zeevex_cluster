@@ -95,7 +95,7 @@ module ZeevexCluster::Coordinator
     # Delete key from database; true if key existed beforehand
     #
     def delete(key, options = {})
-      res = do_delete_row(:keyname => key)
+      res = do_delete_row(:keyname => to_key(key))
       res[:success]
     end
 
@@ -156,7 +156,7 @@ module ZeevexCluster::Coordinator
     # does NOT serialize
     def append(key, str, options = {})
       newval = Literal.new %{CONCAT(value, #{qval str})}
-      do_update_row({:keyname => key}, {:value => newval})
+      do_update_row({:keyname => to_key(key)}, {:value => newval})
     rescue ::Mysql2::Error
       raise ZeevexCluster::Coordinator::ConnectionError.new 'Connection error', $!
     end
@@ -165,7 +165,7 @@ module ZeevexCluster::Coordinator
     # does NOT serialize
     def prepend(key, str, options = {})
       newval = Literal.new %{CONCAT(#{qval str}, value)}
-      do_update_row({:keyname => key}, {:value => newval})
+      do_update_row({:keyname => to_key(key)}, {:value => newval})
     rescue ::Mysql2::Error
       raise ZeevexCluster::Coordinator::ConnectionError.new 'Connection error', $!
     end
