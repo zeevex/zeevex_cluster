@@ -3,6 +3,7 @@ module ZeevexCluster::Strategy
     def initialize(options)
       options[:master_nodename] = options[:nodename]
       super
+      @members = [@nodename]
     end
   end
 end

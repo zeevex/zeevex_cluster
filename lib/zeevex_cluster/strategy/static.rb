@@ -5,6 +5,7 @@ module ZeevexCluster::Strategy
     def initialize(options = {})
       super
       @master_nodename = options[:master_nodename] || raise(ArgumentError, 'Must specify :master_nodename')
+      @members = options[:members]
     end
 
     def start
@@ -33,6 +34,10 @@ module ZeevexCluster::Strategy
     # FIXME: this is CAS-specific
     def master_node
       {:nodename => @master_nodename}
+    end
+
+    def members
+      @members || [@master_nodename, @nodename].select {|x| x != "none" }.uniq
     end
 
     def resign(delay = nil)
