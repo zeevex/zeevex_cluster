@@ -15,8 +15,8 @@ class ZeevexCluster::Serializer::JsonHash
 
   def untranslate_hash(parsed)
     raise ArgumentError, 'Must be a hash' unless parsed.is_a?(Hash)
-    if parsed.count == 1 && parsed.has_key?('$primitive')
-      return parsed['$primitive']
+    if parsed.count == 1 && (parsed.has_key?('$primitive') || parsed.has_key?(:$primitive))
+      return parsed.values.first
     end
     hash = {}
     parsed.each do |(key, val)|

@@ -25,9 +25,9 @@ describe ZeevexCluster::Serializer::JsonHash do
     context 'serialized form' do
       subject { json }
       it { should be_a(String) }
-      it { should match /"joined_at":\s*1355411662\.0/ }
-      it { should match /"locked_at":\s*1355418262\.0/ }
-      it { should match /"timestamp":\s*1355418862\.0/ }
+      it { should match /"joined_at":{[^}]*1355411662/ }
+      it { should match /"locked_at":{[^}]*1355418262/ }
+      it { should match /"timestamp":{[^}]*1355418862/ }
       it { should match /"nodename":\s*"mynode"/ }
       it { should match /^\{.*\}$/ }
       it 'should be a valid JSON string' do
@@ -60,7 +60,6 @@ describe ZeevexCluster::Serializer::JsonHash do
       end
 
       it 'should roundtrip' do
-        pending
         serializer.deserialize( serializer.serialize(tophash) ).should == tophash
       end
     end
