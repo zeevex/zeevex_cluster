@@ -83,6 +83,11 @@ module ZeevexCluster::Coordinator
       raise ZeevexCluster::Coordinator::ConnectionError.new 'Connection error', $!
     end
 
+    def delete(key, options = {})
+      res = do_delete_row(:keyname => key)
+      res[:success]
+    end
+
     #
     # Block is passed the current value, and returns the updated value.
     #
@@ -237,6 +242,15 @@ module ZeevexCluster::Coordinator
       statement = %{UPDATE #@table SET #{updates.join(', ')} #{conditions};}
       res = query statement
       res[:affected_rows] == 0 ? false : true
+    end
+
+    def do_delete_row(quals, options = {})
+      quals[:keyname] or raise 'Must specify at least the key in a delete'
+      conditions = 'WHERE ' + make_conditions(quals)
+      statement = %{DELETE from #@table #{conditions};}
+      res = query statement
+      res[:success] = res[:affected_rows] > 0
+      res
     end
 
     def clear_expired_rows

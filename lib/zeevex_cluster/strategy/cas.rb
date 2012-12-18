@@ -140,7 +140,7 @@ class ZeevexCluster::Strategy::Cas < ZeevexCluster::Strategy::Base
     end
   ensure
     ignoring_connection_error { resign } if do_i_hold_lock?
-
+    ignoring_connection_error { unregister }
     @state = :stopped
     run_hook :left_cluster, cluster_name
     change_cluster_status :offline
@@ -352,6 +352,30 @@ class ZeevexCluster::Strategy::Cas < ZeevexCluster::Strategy::Base
     false
   end
 
+  def unregister
+    me = my_token
+
+    self_key = self.key('member:' +  @nodename)
+    memberlist_key = self.key('members')
+    server.delete(self_key)
+
+    res = false
+    retries = 5
+
+    while retries > 0 && res == false
+      res = server.cas(memberlist_key) do |hash|
+        hash[:members] ||= {}
+        hash[:members].delete @nodename
+        hash
+      end
+      retries -= 1
+    end
+
+    true
+  rescue ZeevexCluster::Coordinator::ConnectionError
+    connection_error
+    false
+  end
 
   #
   # has the master gone without updating suspiciously long?

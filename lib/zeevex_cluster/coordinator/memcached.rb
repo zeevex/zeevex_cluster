@@ -30,6 +30,10 @@ module ZeevexCluster::Coordinator
       raise ZeevexCluster::Coordinator::ConnectionError.new 'Connection error', $!
     end
 
+    def delete(key, options = {})
+      status( @client.delete(to_key(key)) ) == DELETED
+    end
+
     #
     # Block is passed the current value, and returns the updated value.
     #
@@ -96,6 +100,7 @@ module ZeevexCluster::Coordinator
     EXISTS     = 'EXISTS'
     NOT_STORED = 'NOT_STORED'
     NOT_FOUND  = 'NOT_FOUND'
+    DELETED    = 'DELETED'
 
     def status(response)
       case response

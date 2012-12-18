@@ -34,6 +34,12 @@ module ZeevexCluster::Coordinator
       raise ZeevexCluster::Coordinator::ConnectionError.new 'Connection error', $!
     end
 
+    def delete(key, options = {})
+      @client.del(to_key(key)) == 1
+    rescue ::Redis::CannotConnectError
+      raise ZeevexCluster::Coordinator::ConnectionError.new 'Connection error', $!
+    end
+
     #
     # Block is passed the current value, and returns the updated value.
     #
