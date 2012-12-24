@@ -30,4 +30,5 @@ Gem::Specification.new do |s|
   s.add_development_dependency 'mysql2'
 
   s.add_development_dependency 'zk'
+  s.add_development_dependency 'zk-group'
 end

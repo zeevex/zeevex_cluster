@@ -1,6 +1,7 @@
 require 'zeevex_cluster/strategy/base'
 require 'zk'
 require 'zk/election'
+require 'zk-group'
 
 module ZeevexCluster::Strategy
   class Zookeeper < Base
@@ -18,6 +19,7 @@ module ZeevexCluster::Strategy
     def stop
       return true unless @state == :started
       @elector.close
+      @grouper.close
       @zk.close
       @state = :stopped
       true
@@ -31,9 +33,20 @@ module ZeevexCluster::Strategy
       {:nodename => @elector.leader_data}
     end
 
-    def members
+    def members_via_election
       root = @elector.root_vote_path
       @zk.children(root).select {|f| f.start_with? "ballot" }.map do |name|
+        @zk.get(root + '/' + name)[0]
+      end
+    end
+
+    def members
+      @members
+    end
+
+    def data_for_grouper_members(*members)
+      root = @grouper.path
+      Array(members).flatten.map do |name|
         @zk.get(root + '/' + name)[0]
       end
     end
@@ -53,15 +66,26 @@ module ZeevexCluster::Strategy
       logger.debug "ZK: setting up"
 
       @zk = ZK.new(@options[:host] || 'localhost:2181')
-      @elector = ZK::Election::Candidate.new @zk, @cluster_name, :data => @nodename
-
       @zk.wait_until_connected
 
+      @elector = ZK::Election::Candidate.new @zk, @cluster_name, :data => @nodename
+      @grouper = ZK::Group.new @zk, @cluster_name
+
       change_cluster_status :online
+
+      @members = []
 
       setup_winning_callback
       setup_losing_callback
       setup_leader_ack_callback
+
+      @grouper.create
+      @grouper.join @nodename
+
+      @grouper.on_membership_change do |last_members, current_members|
+        update_membership(last_members, current_members)
+
+      end
 
       # this thread will run until we win, in which case
       # the thread will exit and we'll be master.
@@ -70,6 +94,13 @@ module ZeevexCluster::Strategy
       end
       thr.join
       logger.debug "ZK vote thread exited"
+    end
+
+    def update_membership(last_members, current_members)
+      old_membership = @members
+      @members = data_for_grouper_members(current_members).freeze
+      logger.debug "ZK: membership change from ZK::Group: from #{old_membership.inspect} to #{@members.inspect}"
+      run_hook :membership_change, old_membership, @members
     end
 
     def setup_winning_callback
