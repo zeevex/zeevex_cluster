@@ -5,6 +5,8 @@ require 'pry'
 require 'zeevex_cluster'
 
 ctype = ARGV[0] || 'memcached'
+strategy_type = 'cas'
+
 backend_options = case ctype
                     when 'memcached' then {:server => '127.0.0.1', :port => 11212}
                     when 'redis'     then {:server => '127.0.0.1', :port => 6379}
@@ -15,12 +17,16 @@ backend_options = case ctype
                                                :password => 'zclusterp',
                                                :database => 'zcluster'}
                                           }
+                    when 'zookeeper'
+                        strategy_type = 'zookeeper'
+                        {}
                     else raise 'Must be memcached or redis or mysql'
                   end.
     merge({:coordinator_type => ctype})
 
 $c = ZeevexCluster::Election.new :backend_options => backend_options,
                                  :cluster_name => 'foobs',
+                                 :strategy_type => strategy_type,
                                  :nodename => "#{Socket.gethostname}:#{`tty`.chomp}",
                                  :logger => Logger.new(STDOUT),
                                  :hooks  => {:status_change => lambda {|who, news, olds, *rest|
