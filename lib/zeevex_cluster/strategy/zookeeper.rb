@@ -62,6 +62,10 @@ module ZeevexCluster::Strategy
       true
     end
 
+    def cluster_key
+      [@namespace, @cluster_name].reject {|x| x.nil? || x.empty? }.join(':')
+    end
+
     protected
 
     def setup
@@ -70,8 +74,8 @@ module ZeevexCluster::Strategy
       @zk = ZK.new(@options[:host] || 'localhost:2181')
       @zk.wait_until_connected
 
-      @elector = ZK::Election::Candidate.new @zk, @cluster_name, :data => @nodename
-      @grouper = ZK::Group.new @zk, @cluster_name
+      @elector = ZK::Election::Candidate.new @zk, cluster_key, :data => @nodename
+      @grouper = ZK::Group.new @zk, cluster_key
 
       change_cluster_status :online
 

@@ -7,6 +7,7 @@ module ZeevexCluster::Strategy
 
     def initialize(options = {})
       @options       = options
+      @namespace     = options[:namespace]
       @cluster_name  = options[:cluster_name]
       @nodename      = options[:nodename] || Socket.gethostname
       @hooks         = {}
