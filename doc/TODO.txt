@@ -1,10 +1,82 @@
+Goals:
+
+- Stable leader election
+- Membership w/node info
+- Simple configuration management
+- Leases and Locks
+- Message queue (low performance target)
+
+----
 
 * Mutex around every method that might have cross-thread access,
   including:
     * coordinator objects
-   
-* Clearer policy for cross-thread callbacks
 
-* Separate out membership from leader election
+* Sort out the strategy thing - is it really useful?  Is CAS really the kind of strategy? Can coordinators
+  be used for more than one kind of strategy?
 
-* MongoDB backend
+** TESTS!
+  * CAS should be run against a mock backend
+  * Cluster should be run against a mock strategy
+
+* Other user code integration, including event runloops perhaps?
+
+** Backends
+  * All
+    * In membership or cluster info, check for (sem)version compatibility
+  * Redis
+    * Use queues and PUB/SUB for messaging
+    * Use e.g. atomic hashes instead of CAS writes for group membership to scale better?
+  * MySQL backend
+    * auto-create memory table if it doesn't exist
+    * Use MySQL locks somehow to implement non-poll messaging?
+  * memcached
+    * implement queue-like structure for messaging (using append/prepend, CAS for reads)
+    * Easy way to notify a node it should check for various conditions
+  * Moneto (ruby key/value store abstraction - needs CAS, though)
+  * AR backend
+  * MongoDB backend
+    - replica sets and/or write concerns for replication / HA?
+    - tailable cursors for queues
+  * ZK (ruby Zookeeper wrapper) backend - would be very thin, as ZK provides all that this
+    lib plans to
+  * Local/in-process/filesystem backend for testing
+
+* More core functionality / cluster primitives
+  * Global Cluster info struct, and version checking
+  * Group and single node messaging
+  * Leases - can reuse most of leader election code for this; in fact leader election
+             can be a wrapper around a lease
+  * Locks (auto-released when member exits / times out?)
+
+** General user code API
+  * Health check callback into user code - when failed, notify members, resign, and leave
+  * Clearer policy for cross-thread callbacks
+  * Separate out membership from leader election
+  * Cluster configuration file format
+
+** Leader election
+  * Replace fixed @stale_time with lease duration specified by candidate
+  * Different members will notice master state changes at different times, depending on their polling.
+    Should they coordinate or predict when scheduled changes are happening?
+  * Callback for no master, and suspect master
+
+* Implement the state machines in terms of actual state machine gems instead of spaghetti
+
+** Membership
+    * Callbacks into user code for group membership changes - member joined, suspect, left
+    * Fast failure of member - attempt to query when suspect
+    * Kick live member?
+    * After a long partition (including ^Z in which the client isn't running at all), the lib and
+      user code should (locally) leave the cluster and rejoin from scratch - otherwise other nodes
+      will see it as having left, but it may think it never did
+      - Similarly, if it goes to update its membership record and finds it missing, then it should
+        consider itself kicked
+
+
+
+
+Dreamlist:
+
+* Consistent causal ordering of all callbacks / messages on all members?
+
