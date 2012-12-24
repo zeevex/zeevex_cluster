@@ -1,0 +1,60 @@
+When suspending master with Ctrl-Z for a while, the other 2 nodes in a 
+3 node cluster elect a new master and consider the suspended node to 
+have exited.
+
+Resuming the suspended node shows that it is not fully aware of its altered
+status, though note that zk-group shows it's not a member anymore.
+
+[17] MASTER[2] pry(main)>
+$c.@strategy._get_synchronized_object.@elector.leader? 
+=> true
+[18] MASTER[2] pry(main)> 
+[19] MASTER[2] pry(main)> $c.members
+=> ["blacktip.esquimaux.org:/dev/ttys005",
+"blacktip.esquimaux.org:/dev/ttys006"]
+[20] MASTER[2] pry(main)> $c.nodename
+=> "blacktip.esquimaux.org:/dev/ttys003"
+
+Do we need to act on ZK session/connection changes?
+
+ZK::Client::Base#methods: assert_we_are_not_on_the_event_dispatch_thread!  children  delete  event_dispatch_thread?  event_handler  exists?  get  get_acl  inspect  register  session_id  session_passwd  set  set_acl  set_debug_level  stat  wait_until_connected  watcher
+ZK::Client::StateMixin#methods: on_connected  on_connecting  on_expired_session  on_state_change
+Zookeeper::Constants#methods: event_by_value  state_by_value
+ZK::Client::Unixisms#methods: block_until_node_deleted  find  mkdir_p  rm_rf
+ZK::Client::Conveniences#methods: defer  election_candidate  election_observer  exclusive_locker  locker  ping?  queue  shared_locker  with_lock
+ZK::Logging#methods: logger
+ZK::Client::Threaded#methods: associating?  client_state  close  close!  closed?  connect  connected?  connecting?  create  expired_session?  on_exception  on_threadpool?  pause_before_fork_in_parent  raw_event_handler  reopen  resume_after_fork_in_parent  state  wait_until_closed  wait_until_connected_or_dying
+instance variables: @client_state  @cnx  @cond  @connection_timeout  @event_handler  @fork_subs  @host  @last_cnx_state  @mutex  @pid  @reconnect  @reconnect_thread  @retry_duration  @threadpool
+
+----
+log after resume:
+
+[1]  + 28262 continued  bundle exec ./script/election.rb zookeeper
+[8] MASTER[3] pry(main)>
+[9] MASTER[3] pry(main)> D, [2012-12-24T14:08:51.765368 #28262] DEBUG -- : EventHandler#process dispatching event: #<Zookeeper::Callbacks::WatcherCallback:0x109b0a1d0 @path="/_zk/groups/foobs", @type=4, @proc=#<Proc:0x00000001098d5630@/Users/robertsanders/.rvm/gems/ree-1.8.7-2012.02@zeevex_cluster/gems/zookeeper-1.4.1/lib/zookeeper/callbacks.rb:24>, @state=3, @completed=false, @context=nil>
+D, [2012-12-24T14:08:51.766028 #28262] DEBUG -- : EventHandler#process dispatching event: #<Zookeeper::Callbacks::WatcherCallback:0x10993b278 @path="", @type=-1, @proc=#<Proc:0x00000001098d5630@/Users/robertsanders/.rvm/gems/ree-1.8.7-2012.02@zeevex_cluster/gems/zookeeper-1.4.1/lib/zookeeper/callbacks.rb:24>, @state=1, @completed=false, @context=nil>
+D, [2012-12-24T14:08:51.766576 #28262] DEBUG -- : called #<ZK::EventHandlerSubscription::Base:0x109d6d5d0 @mutex=#<ZK::Monitor:0x109d6d530 @mon_owner=nil, @mon_waiting_queue=[], @mon_entering_queue=[], @mon_count=0>, @path="/_zk/groups/foobs", @parent=#<ZK::EventHandler:0x109d7b0e0 @thread_opt=:single, @mutex=#<ZK::Monitor:0x109d7abb8 @mon_owner=nil, @mon_waiting_queue=[], @mon_entering_queue=[], @mon_count=0>, @default_watcher_block=#<Proc:0x0000000109f905d8@/Users/Shared/squid/src/github/cluster/zk/lib/zk/event_handler.rb:251>, @orig_pid=28262, @state=:running, @zk=#<ZK::Client::Threaded:2230049920 zk_session_id=0x13bc3f378bd0078 ...>, @outstanding_watches={:child=>#<Set: {}>, :data=>#<Set: {}>}, @callbacks={"/_zkelection/foobs/leader_ack"=>[], :all_node_events=>[], "/_zk/groups/foobs"=>[#<ZK::EventHandlerSubscription::Base:0x109d6d5d0 ...>], :all_state_events=>[], "state_1"=>[], "state_3"=>[#<ZK::EventHandlerSubscription::Base:0x109d6cf40 @mutex=#<ZK::Monitor:0x109d6cea0 @mon_owner=nil, @mon_waiting_queue=[], @mon_entering_queue=[], @mon_count=0>, @path="state_3", @parent=#<ZK::EventHandler:0x109d7b0e0 ...>, @interests=#<Set: {:deleted, :changed, :child, :created}>, @callable=#<Proc:0x0000000109d96520@/Users/Shared/squid/src/github/cluster/zk-group/lib/zk-group/group.rb:90>>]}>, @interests=#<Set: {:child}>, @callable=#<Proc:0x0000000109d96868@/Users/Shared/squid/src/github/cluster/zk-group/lib/zk-group/group.rb:86>> with [#<Zookeeper::Callbacks::WatcherCallback:0x109b0a1d0 @path="/_zk/groups/foobs", @type=4, @proc=#<Proc:0x00000001098d5630@/Users/robertsanders/.rvm/gems/ree-1.8.7-2012.02@zeevex_cluster/gems/zookeeper-1.4.1/lib/zookeeper/callbacks.rb:24>, @state=3, @zk=#<ZK::Client::Threaded:2230049920 zk_session_id=0x13bc3f378bd0078 ...>, @completed=true, @context=nil>] on threadpool
+D, [2012-12-24T14:08:51.766643 #28262] DEBUG -- : session state was invalid, calling reopen
+D, [2012-12-24T14:08:51.766687 #28262] DEBUG -- : EventHandler#process dispatching event: #<Zookeeper::Callbacks::WatcherCallback:0x1099259a0 @path="", @type=-1, @proc=#<Proc:0x00000001098d5630@/Users/robertsanders/.rvm/gems/ree-1.8.7-2012.02@zeevex_cluster/gems/zookeeper-1.4.1/lib/zookeeper/callbacks.rb:24>, @state=-112, @completed=false, @context=nil>
+D, [2012-12-24T14:08:51.766743 #28262] DEBUG -- : reopening, no fork detected
+D, [2012-12-24T14:08:51.771478 #28262] DEBUG -- : EventHandler#process dispatching event: #<Zookeeper::Callbacks::WatcherCallback:0x1098fa188 @path="", @type=-1, @proc=#<Proc:0x00000001098d5630@/Users/robertsanders/.rvm/gems/ree-1.8.7-2012.02@zeevex_cluster/gems/zookeeper-1.4.1/lib/zookeeper/callbacks.rb:24>, @state=3, @completed=false, @context=nil>
+D, [2012-12-24T14:08:51.771547 #28262] DEBUG -- : wait_until_connected_or_dying @last_cnx_state: 3, time_left? true, @client_state: :running
+D, [2012-12-24T14:08:51.771710 #28262] DEBUG -- : reopen returned: :connected
+D, [2012-12-24T14:08:51.771908 #28262] DEBUG -- : broadcast_membership_change! received event #<Zookeeper::Callbacks::WatcherCallback:0x109b0a1d0 @path="/_zk/groups/foobs", @type=4, @proc=#<Proc:0x00000001098d5630@/Users/robertsanders/.rvm/gems/ree-1.8.7-2012.02@zeevex_cluster/gems/zookeeper-1.4.1/lib/zookeeper/callbacks.rb:24>, @state=3, @zk=#<ZK::Client::Threaded:2230049920 zk_session_id=0x13bc3f378bd007b ...>, @completed=true, @context=nil>
+D, [2012-12-24T14:08:51.772264 #28262] DEBUG -- : called #<ZK::EventHandlerSubscription::Base:0x109d6cf40 @mutex=#<ZK::Monitor:0x109d6cea0 @mon_owner=nil, @mon_waiting_queue=[], @mon_entering_queue=[], @mon_count=0>, @path="state_3", @parent=#<ZK::EventHandler:0x109d7b0e0 @thread_opt=:single, @mutex=#<ZK::Monitor:0x109d7abb8 @mon_owner=nil, @mon_waiting_queue=[], @mon_entering_queue=[], @mon_count=0>, @default_watcher_block=#<Proc:0x0000000109f905d8@/Users/Shared/squid/src/github/cluster/zk/lib/zk/event_handler.rb:251>, @orig_pid=28262, @state=:running, @zk=#<ZK::Client::Threaded:2230049920 zk_session_id=0x13bc3f378bd007b ...>, @outstanding_watches={:child=>#<Set: {}>, :data=>#<Set: {}>}, @callbacks={"/_zkelection/foobs/leader_ack"=>[], :all_node_events=>[], "/_zk/groups/foobs"=>[#<ZK::EventHandlerSubscription::Base:0x109d6d5d0 @mutex=#<ZK::Monitor:0x109d6d530 @mon_owner=nil, @mon_waiting_queue=[], @mon_entering_queue=[], @mon_count=0>, @path="/_zk/groups/foobs", @parent=#<ZK::EventHandler:0x109d7b0e0 ...>, @interests=#<Set: {:child}>, @callable=#<Proc:0x0000000109d96868@/Users/Shared/squid/src/github/cluster/zk-group/lib/zk-group/group.rb:86>>], :all_state_events=>[], "state_1"=>[], "state_3"=>[#<ZK::EventHandlerSubscription::Base:0x109d6cf40 ...>], "state_-112"=>[]}>, @interests=#<Set: {:deleted, :changed, :child, :created}>, @callable=#<Proc:0x0000000109d96520@/Users/Shared/squid/src/github/cluster/zk-group/lib/zk-group/group.rb:90>> with [#<Zookeeper::Callbacks::WatcherCallback:0x1098fa188 @path="", @type=-1, @proc=#<Proc:0x00000001098d5630@/Users/robertsanders/.rvm/gems/ree-1.8.7-2012.02@zeevex_cluster/gems/zookeeper-1.4.1/lib/zookeeper/callbacks.rb:24>, @state=3, @zk=#<ZK::Client::Threaded:2230049920 zk_session_id=0x13bc3f378bd007b ...>, @completed=true, @context=nil>] on threadpool
+D, [2012-12-24T14:08:51.772987 #28262] DEBUG -- : last_members: ["m0000000045", "m0000000046", "m0000000047"]
+D, [2012-12-24T14:08:51.773031 #28262] DEBUG -- : @known_members: ["m0000000046", "m0000000047"]
+D, [2012-12-24T14:08:51.774129 #28262] DEBUG -- : ZK: membership change from ZK::Group: from ["blacktip.esquimaux.org:/dev/ttys003", "blacktip.esquimaux.org:/dev/ttys005", "blacktip.esquimaux.org:/dev/ttys006"] to ["blacktip.esquimaux.org:/dev/ttys005", "blacktip.esquimaux.org:/dev/ttys006"]
+D, [2012-12-24T14:08:51.774173 #28262] DEBUG -- : <running hook membership_change([["blacktip.esquimaux.org:/dev/ttys003", "blacktip.esquimaux.org:/dev/ttys005", "blacktip.esquimaux.org:/dev/ttys006"], ["blacktip.esquimaux.org:/dev/ttys005", "blacktip.esquimaux.org:/dev/ttys006"]])>
+D, [2012-12-24T14:08:51.774221 #28262] DEBUG -- : ZeevexCluster::Election observed hook: membership_change [["blacktip.esquimaux.org:/dev/ttys003", "blacktip.esquimaux.org:/dev/ttys005", "blacktip.esquimaux.org:/dev/ttys006"], ["blacktip.esquimaux.org:/dev/ttys005", "blacktip.esquimaux.org:/dev/ttys006"]]
+D, [2012-12-24T14:08:51.774276 #28262] DEBUG -- : <running hook strategy_membership_change([["blacktip.esquimaux.org:/dev/ttys003", "blacktip.esquimaux.org:/dev/ttys005", "blacktip.esquimaux.org:/dev/ttys006"], ["blacktip.esquimaux.org:/dev/ttys005", "blacktip.esquimaux.org:/dev/ttys006"]])>
+D, [2012-12-24T14:08:51.774410 #28262] DEBUG -- : broadcast_membership_change! received event #<Zookeeper::Callbacks::WatcherCallback:0x1098fa188 @path="", @type=-1, @proc=#<Proc:0x00000001098d5630@/Users/robertsanders/.rvm/gems/ree-1.8.7-2012.02@zeevex_cluster/gems/zookeeper-1.4.1/lib/zookeeper/callbacks.rb:24>, @state=3, @zk=#<ZK::Client::Threaded:2230049920 zk_session_id=0x13bc3f378bd007b ...>, @completed=true, @context=nil>
+D, [2012-12-24T14:08:51.775273 #28262] DEBUG -- : last_members: ["m0000000046", "m0000000047"]
+D, [2012-12-24T14:08:51.775313 #28262] DEBUG -- : @known_members: ["m0000000046", "m0000000047"]
+D, [2012-12-24T14:08:51.775342 #28262] DEBUG -- : membership data did not actually change, not notifying
+[9] MASTER[3] pry(main)>
+[10] MASTER[2] pry(main)>
+
+
+-----------------------------
+
