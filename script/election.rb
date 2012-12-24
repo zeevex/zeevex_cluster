@@ -19,7 +19,7 @@ backend_options = case ctype
                                           }
                     when 'zookeeper'
                         strategy_type = 'zookeeper'
-                        {}
+                        {:reconnect => true}
                     else raise 'Must be memcached or redis or mysql'
                   end.
     merge({:coordinator_type => ctype})
@@ -39,7 +39,7 @@ Pry.config.prompt[0] = proc do |target_self, nest_level, pry|
               when $c.member? then "member"
               else "offline"
             end
-  mcount = $c.member? ? $c.members.count : 0
+  mcount = $c.member? && $c.members ? $c.members.count : 0
   "[#{pry.input_array.size}] #{cstatus}[#{mcount}] pry(#{Pry.view_clip(target_self)})#{":#{nest_level}" unless nest_level.zero?}> "
 end
 

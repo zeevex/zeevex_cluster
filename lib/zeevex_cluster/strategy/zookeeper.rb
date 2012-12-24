@@ -21,6 +21,7 @@ module ZeevexCluster::Strategy
       @elector.close
       @grouper.close
       @zk.close
+      exited_cluster
       @state = :stopped
       true
     end
@@ -85,6 +86,8 @@ module ZeevexCluster::Strategy
       setup_losing_callback
       setup_leader_ack_callback
 
+      setup_connection_callbacks
+
       @grouper.create
       @grouper.join @nodename
 
@@ -128,6 +131,32 @@ module ZeevexCluster::Strategy
       @elector.on_leader_ack do
         logger.debug "ZK: leader ack!"
         change_master_status :good
+      end
+    end
+
+    def exited_cluster
+      change_my_status :nonmember
+      change_master_status :unknown
+      change_cluster_status :offline
+      @state = :stopped
+    end
+
+    def fail_out_of_cluster
+      stop
+      if @options[:reconnect]
+        logger.debug 'ZK: reconnecting after failure'
+        start
+      end
+    end
+
+    def setup_connection_callbacks
+      @zk.on_expired_session do
+        logger.debug 'ZK: expired session'
+        fail_out_of_cluster
+      end
+
+      @zk.on_state_change do |*args|
+        logger.debug "ZK: state change #{args.inspect}"
       end
     end
   end
