@@ -32,4 +32,15 @@ $c = ZeevexCluster::Election.new :backend_options => backend_options,
                                  :hooks  => {:status_change => lambda {|who, news, olds, *rest|
                                                                        puts "MSC! #{news} #{olds}"} }
 
+Pry.config.prompt = Pry::DEFAULT_PROMPT.clone
+Pry.config.prompt[0] = proc do |target_self, nest_level, pry|
+  cstatus = case true
+              when $c.master? then "MASTER"
+              when $c.member? then "member"
+              else "offline"
+            end
+  mcount = $c.member? ? $c.members.count : 0
+  "[#{pry.input_array.size}] #{cstatus}[#{mcount}] pry(#{Pry.view_clip(target_self)})#{":#{nest_level}" unless nest_level.zero?}> "
+end
+
 binding.pry
