@@ -1,14 +1,15 @@
 # Alex's Ruby threading utilities - taken from https://github.com/alexdowad/showcase
 
 require 'thread'
+require 'zeevex_proxy'
 
 # Wraps an object, synchronizes all method calls
 # The wrapped object can also be set and read out
 #   which means this can also be used as a thread-safe reference
 #   (like a 'volatile' variable in Java)
-class ZeevexCluster::Synchronized
+class ZeevexCluster::Synchronized < ZeevexProxy::Base
   def initialize(obj)
-    @obj   = obj
+    super
     @mutex = Mutex.new
   end
 
@@ -19,14 +20,6 @@ class ZeevexCluster::Synchronized
     @mutex.synchronize { @obj }
   end
 
-  [:class, :inspect, :to_s, :==, :hash, :equal?].each do |method|
-    undef_method method
-  end
-
-  def class
-    @obj.class
-  end
-
   def respond_to?(method)
     if [:_set_synchronized_object, :_get_synchronized_object].include?(method.to_sym)
       true
@@ -35,10 +28,9 @@ class ZeevexCluster::Synchronized
     end
   end
 
-  def method_missing(method,*args,&block)
-    result = @mutex.synchronize { @obj.send(method,*args,&block) }
-    # some methods return "self" -- if so, return this wrapper
-    result.object_id == @obj.object_id ? self : result
+  def method_missing(method, *args, &block)
+    result = @mutex.synchronize { @obj.__send__(method, *args, &block) }
+    # result.__id__ == @obj.__id__ ? self : result
   end
 end
 

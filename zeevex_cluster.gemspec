@@ -21,6 +21,7 @@ Gem::Specification.new do |s|
 
   s.add_dependency 'state_machine'
   s.add_dependency 'json'
+  s.add_dependency 'zeevex_proxy'
 
   s.add_development_dependency 'rspec', '~> 2.9.0'
   s.add_development_dependency 'rake'

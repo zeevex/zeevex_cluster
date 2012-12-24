@@ -2,6 +2,11 @@ source "http://rubygems.org"
 
 group :development, :test do
   gem 'pry'
+  gem 'pry-remote'
+  gem 'pry-doc'
+  gem 'pry-nav'
+  gem 'pry-buffers'
+  gem 'ruby18_source_location', :platform => :mri_18
 end
 
 group :development, :test do
