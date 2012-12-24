@@ -26,14 +26,16 @@ module ZeevexCluster::Strategy
     end
 
     def am_i_master?
-      @elector.leader?
+      @state == :started && @elector.leader?
     end
 
     def master_node
-      {:nodename => @elector.leader_data}
+      @state == :started && {:nodename => @elector.leader_data}
     end
 
     def members_via_election
+      return unless @state == :started
+
       root = @elector.root_vote_path
       @zk.children(root).select {|f| f.start_with? "ballot" }.map do |name|
         @zk.get(root + '/' + name)[0]
@@ -41,7 +43,7 @@ module ZeevexCluster::Strategy
     end
 
     def members
-      @members
+      @state == :started && @members
     end
 
     def data_for_grouper_members(*members)
