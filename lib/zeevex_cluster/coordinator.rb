@@ -22,7 +22,7 @@ module ZeevexCluster
       require 'zeevex_cluster/coordinator/' + coordinator_type
       clazz = self.const_get(coordinator_type.capitalize)
       raise ArgumentError, "Unknown coordinator type: #{coordinator_type}" unless clazz
-      clazz.new options
+      ZeevexCluster.Synchronized(clazz.new(options))
     end
   end
 end
