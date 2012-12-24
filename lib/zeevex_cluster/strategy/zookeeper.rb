@@ -25,9 +25,9 @@ module ZeevexCluster::Strategy
       true
     end
 
-    def am_i_master?
-      @state == :started && @elector.leader?
-    end
+    #def am_i_master?
+    #  @state == :started && @elector.leader?
+    #end
 
     def master_node
       @state == :started && {:nodename => @elector.leader_data}
