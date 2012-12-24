@@ -9,8 +9,8 @@ Gem::Specification.new do |s|
   s.authors     = ["Robert Sanders"]
   s.email       = ["robert@zeevex.com"]
   s.homepage    = "http://github.com/zeevex/zeevex_cluster"
-  s.summary     = %q{Use a shared service to reliably elect a master in a cluster of processes.}
-  s.description = %q{Using a shared data storage service like MySQL, Memcache, Redis etc., one process of many can be elected a cluster master.}
+  s.summary     = %q{Use a shared coordinator service to reliably elect a master in a cluster of processes.}
+  s.description = %q{Using a shared data storage service like MySQL, Memcache, Redis, or ZooKeeper, one process of many can be elected a cluster master. Notification of cluster membership changes is also provided.}
 
   s.rubyforge_project = "zeevex_cluster"
 
@@ -29,6 +29,6 @@ Gem::Specification.new do |s|
   s.add_development_dependency 'redis'
   s.add_development_dependency 'mysql2'
 
-  s.add_development_dependency 'zk'
-  s.add_development_dependency 'zk-group'
+  # s.add_development_dependency 'zk'
+  # s.add_development_dependency 'zk-group'
 end
