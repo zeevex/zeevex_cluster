@@ -6,6 +6,7 @@ module ZeevexCluster::Strategy
   class Zookeeper < Base
     def initialize(options = {})
       super
+      ZK.logger = logger
     end
 
     def start
