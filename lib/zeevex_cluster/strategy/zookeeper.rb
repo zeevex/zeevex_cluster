@@ -58,21 +58,9 @@ module ZeevexCluster::Strategy
 
       change_cluster_status :online
 
-      @elector.on_winning_election do
-        logger.debug "ZK: winning election!"
-        change_my_status :master
-        change_master_status :good
-      end
-
-      @elector.on_losing_election do
-        logger.debug "ZK: losing election!"
-        change_my_status :member
-      end
-
-      @elector.on_leader_ack do
-        logger.debug "ZK: leader ack!"
-        change_master_status :good
-      end
+      setup_winning_callback
+      setup_losing_callback
+      setup_leader_ack_callback
 
       # this thread will run until we win, in which case
       # the thread will exit and we'll be master.
@@ -83,5 +71,26 @@ module ZeevexCluster::Strategy
       logger.debug "ZK vote thread exited"
     end
 
+    def setup_winning_callback
+      @elector.on_winning_election do
+        logger.debug "ZK: winning election!"
+        change_my_status :master
+        change_master_status :good
+      end
+    end
+
+    def setup_losing_callback
+      @elector.on_losing_election do
+        logger.debug "ZK: losing election!"
+        change_my_status :member
+      end
+    end
+
+    def setup_leader_ack_callback
+      @elector.on_leader_ack do
+        logger.debug "ZK: leader ack!"
+        change_master_status :good
+      end
+    end
   end
 end
