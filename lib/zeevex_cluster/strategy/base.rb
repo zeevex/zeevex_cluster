@@ -34,6 +34,14 @@ module ZeevexCluster::Strategy
       @state
     end
 
+    def online?
+      @cluster_status == :online
+    end
+
+    def member?
+      online?
+    end
+
     def started?
       @state == :started
     end

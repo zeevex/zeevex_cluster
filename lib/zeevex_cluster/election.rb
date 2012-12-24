@@ -78,7 +78,7 @@ module ZeevexCluster
     end
 
     def member?
-      @member
+      @strategy.member?
     end
 
     def members
