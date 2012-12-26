@@ -1,9 +1,11 @@
 require 'zeevex_cluster/strategy'
+# require 'zeevex_threadsafe/thread_safer'
 
 module ZeevexCluster::Strategy
   class Base
     include ZeevexCluster::Util
     include ZeevexCluster::Hooks
+    # include ZeevexThreadsafe::ThreadSafer
 
     def initialize(options = {})
       @options       = options
@@ -75,12 +77,12 @@ module ZeevexCluster::Strategy
     end
 
     def reset_state_vars
-
       @state = :stopped
       @my_cluster_status = :nonmember
       @master_status = :none
       @cluster_status = :offline
-
     end
+
+    # make_thread_safe :change_my_status, :change_master_status, :change_cluster_status
   end
 end
