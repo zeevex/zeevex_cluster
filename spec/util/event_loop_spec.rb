@@ -26,7 +26,7 @@ describe ZeevexCluster::Util::EventLoop do
     end
   end
 
-  context 'runring tasks asynchronously' do
+  context 'running tasks asynchronously' do
     let :queue do
       Queue.new
     end
