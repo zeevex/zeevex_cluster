@@ -26,7 +26,7 @@ describe ZeevexCluster::Util::EventLoop do
     end
   end
 
-  context 'runs task asynchronously' do
+  context 'runring tasks asynchronously' do
     let :queue do
       Queue.new
     end
@@ -36,11 +36,25 @@ describe ZeevexCluster::Util::EventLoop do
       queue.pop.should_not == Thread.current.__id__
     end
 
+    it 'should return the callable\'s value in the returned future' do
+      res = loop.enqueue { 100 * 2 }
+      res.value.should == 200
+    end
+
     it 'should update the future only when ready' do
       res = loop.enqueue { queue.pop; "foo" }
       res.should_not be_ready
       queue << "go ahead"
       res.value.should == "foo"
+    end
+
+    it 'should allow enqueueing from the event loop, and execute in order' do
+      loop.enqueue do
+        # runs after this block finishes
+        loop.enqueue { queue << "val2" }
+        queue << "val1"
+      end
+      [queue.pop, queue.pop].should == ["val1", "val2"]
     end
   end
 
