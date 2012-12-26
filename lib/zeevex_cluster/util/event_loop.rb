@@ -31,26 +31,30 @@ module ZeevexCluster::Util
       @state = :stopped
     end
 
-    def enqueue(runnable = nil, &block)
-      if runnable
-        @queue << runnable
-      elsif block
-        @queue << block
-      else
-        raise ArgumentError, "Must provide proc or block arg"
-      end
+    #
+    # Enqueue a callable object (including a Future) and return
+    # a Future object which can be used to fetch the return value
+    #
+    def enqueue(callable = nil, &block)
+      to_run = callable || block
+      raise ArgumentError, "Must provide proc or block arg" unless to_run
+
+      to_run = Future.new(to_run) unless to_run.is_a?(Future)
+      @queue << to_run
+      to_run
     end
 
     def in_event_loop?
-      Thread.current == @thread
+      Thread.current.object_id == @thread.object_id
     end
 
     def on_event_loop(runnable = nil, &block)
       return unless runnable || block_given?
+      future = Future.new(runnable || block)
       if in_event_loop?
-        (runnable || block).call
+        future.execute
       else
-        enqueue runnable, &block
+        enqueue future, &block
       end
     end
 
@@ -88,6 +92,10 @@ module ZeevexCluster::Util
       rescue Exception
         @exception = $!
         @queue    << $!
+      end
+
+      def call
+        execute
       end
 
       def exception
