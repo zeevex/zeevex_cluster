@@ -12,6 +12,10 @@ module ZeevexCluster
   module Hooks
     include Logging
 
+    def use_run_loop_for_hooks(runloop)
+      @hook_run_loop = runloop
+    end
+
     def add_hook_observer(observer)
       @hook_observers ||= []
       @hook_observers << observer
@@ -36,6 +40,16 @@ module ZeevexCluster
     end
 
     def run_hook(hook_name, *args)
+      if @hook_run_loop
+        @hook_run_loop.enqueue do
+          _run_hook(hook_name, *args)
+        end
+      else
+        _run_hook(hook_name, *args)
+      end
+    end
+
+    def _run_hook(hook_name, *args)
       hook_name = hook_name.to_sym
       logger.debug "<running hook #{hook_name}(#{args.inspect})>"
       if @hooks[hook_name]
