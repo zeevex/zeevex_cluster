@@ -41,13 +41,13 @@ describe ZeevexCluster::Util::Hooks do
   end
 
   context 'basic hook usage' do
-    it "should call provided proc" do
+    it 'should call provided proc' do
       receiver.should_receive(:process)
       subject.add_hook(:foo, Proc.new {receiver.process})
       subject.run_hook :foo
     end
 
-    it "should call provided block" do
+    it 'should call provided block' do
       receiver.should_receive(:process)
       subject.add_hook(:foo) do |obj|
         receiver.process
@@ -55,16 +55,55 @@ describe ZeevexCluster::Util::Hooks do
       subject.run_hook :foo
     end
 
-    it "should invoke call if handed a non-Proc callable" do
+    it 'should invoke call if handed a non-Proc callable' do
       receiver.should_receive(:call).with(subject, 50)
       subject.add_hook(:foo, receiver)
       subject.run_hook :foo, 50
     end
 
-    it "should allow hook to be removed" do
+    it 'should allow hook to be removed' do
       receiver.should_not_receive(:call)
       identifier = subject.add_hook(:foo, receiver)
       subject.remove_hook(:foo, identifier)
+      subject.run_hook :foo, 50
+    end
+
+    it 'should return identifier for a hook' do
+      subject.add_hook(:foo, receiver).should_not be_nil
+    end
+
+    it 'should return number identifier for an unnamed hook' do
+      subject.add_hook(:foo, receiver).should be_a(Numeric)
+    end
+
+    it 'should return unique identifier for each hook added' do
+      subject.add_hook(:foo, receiver).should_not ==
+          subject.add_hook(:foo, receiver)
+    end
+
+    it 'should return user-provided identifier' do
+      subject.add_hook(:foo, receiver, :identifier => "foobarbaz").should == "foobarbaz"
+    end
+
+    it 'should allow hook to be removed by user-provided identifier' do
+      receiver.should_not_receive(:call)
+      subject.add_hook(:foo, receiver, :identifier => "foobarbaz")
+      subject.remove_hook(:foo, "foobarbaz")
+      subject.run_hook :foo, 50
+    end
+
+    it 'should allow multiple hooks to be added and run with a given identifier' do
+      receiver.should_receive(:call).twice
+      subject.add_hook(:foo, receiver, :identifier => "foobarbaz")
+      subject.add_hook(:foo, receiver, :identifier => "foobarbaz")
+      subject.run_hook :foo, 50
+    end
+
+    it 'should allow all hooks with a given identifier to be removed at once' do
+      receiver.should_not_receive(:call)
+      subject.add_hook(:foo, receiver, :identifier => "foobarbaz")
+      subject.add_hook(:foo, receiver, :identifier => "foobarbaz")
+      subject.remove_hook(:foo, "foobarbaz")
       subject.run_hook :foo, 50
     end
   end
