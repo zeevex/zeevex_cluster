@@ -2,8 +2,8 @@ require 'socket'
 
 module ZeevexCluster
   class Base
-    include ZeevexCluster::Util
-    include ZeevexCluster::Hooks
+    include ZeevexCluster::Util::Logging
+    include ZeevexCluster::Util::Hooks
 
     attr_accessor :nodename, :options
 

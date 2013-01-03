@@ -11,17 +11,17 @@ describe ZeevexCluster::Util::EventLoop do
 
   context 'basic usage' do
     it 'should allow enqueue of a proc' do
-      loop.enqueue(Proc.new { true }).should be_a(ZeevexCluster::Util::EventLoop::Future)
+      loop.enqueue(Proc.new { true }).should be_a(ZeevexCluster::Util::Future)
     end
 
     it 'should allow enqueue of a block' do
       loop.enqueue do
         true
-      end.should be_a(ZeevexCluster::Util::EventLoop::Future)
+      end.should be_a(ZeevexCluster::Util::Future)
     end
 
     it 'should allow enqueue of a Future, and return same future' do
-      future = ZeevexCluster::Util::EventLoop::Future.new(Proc.new {true})
+      future = ZeevexCluster::Util::Future.new(Proc.new {true})
       loop.enqueue(future).should == future
     end
   end

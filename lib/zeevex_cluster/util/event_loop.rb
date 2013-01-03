@@ -1,4 +1,5 @@
 require 'thread'
+require 'zeevex_cluster/util/future'
 
 module ZeevexCluster::Util
   class EventLoop
@@ -39,7 +40,7 @@ module ZeevexCluster::Util
       to_run = callable || block
       raise ArgumentError, "Must provide proc or block arg" unless to_run
 
-      to_run = Future.new(to_run) unless to_run.is_a?(Future)
+      to_run = ZeevexCluster::Util::Future.new(to_run) unless to_run.is_a?(ZeevexCluster::Util::Future)
       @queue << to_run
       to_run
     end
@@ -50,7 +51,7 @@ module ZeevexCluster::Util
 
     def on_event_loop(runnable = nil, &block)
       return unless runnable || block_given?
-      future = Future.new(runnable || block)
+      future = ZeevexCluster::Util::Future.new(runnable || block)
       if in_event_loop?
         future.execute
       else
@@ -70,78 +71,5 @@ module ZeevexCluster::Util
       end
     end
 
-    public
-
-    class Future
-      def initialize(computation)
-        @computation = computation
-        @mutex       = Mutex.new
-        @queue       = Queue.new
-        @exception   = nil
-        @done        = false
-        @result      = false
-        @executed    = false
-      end
-
-      #
-      # not MT-safe; only to be called from executor thread
-      #
-      def execute
-        @executed = true
-        @queue << @computation.call
-      rescue Exception
-        @exception = $!
-        @queue    << $!
-      end
-
-      def call
-        execute
-      end
-
-      def exception
-        @mutex.synchronize do
-          @exception
-        end
-      end
-
-      def exception?
-        !! @exception
-      end
-
-      def value(reraise = true)
-        @mutex.synchronize do
-          unless @done
-            @done   = true
-            @result = @queue.pop
-          end
-          if @exception && reraise
-            raise @exception
-          else
-            @result
-          end
-        end
-      end
-
-      def ready?
-        @mutex.synchronize do
-          ! @done && ! @queue.empty?
-        end
-      end
-
-      def set_result(&block)
-        @mutex.synchronize do
-          raise ArgumentError, "Must supply block" unless block_given?
-          raise ArgumentError, "Already supplied block" if @computation
-          raise ArgumentError, "Future already executed" if @done
-
-          @computation = block
-          execute
-        end
-      end
-
-      #def wait(timeout = nil)
-      #  @queue.wait timeout
-      #end
-    end
   end
 end

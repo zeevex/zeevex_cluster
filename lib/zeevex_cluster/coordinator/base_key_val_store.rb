@@ -1,7 +1,7 @@
 require 'zeevex_cluster/coordinator'
 
 class ZeevexCluster::Coordinator::BaseKeyValStore
-  include ZeevexCluster::Util
+  include ZeevexCluster::Util::Logging
 
   def self.setup
     unless @setup

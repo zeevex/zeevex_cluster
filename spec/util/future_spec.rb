@@ -1,8 +1,8 @@
 require File.join(File.dirname(__FILE__), '../spec_helper')
 require 'zeevex_cluster/util/event_loop.rb'
 
-describe ZeevexCluster::Util::EventLoop::Future do
-  clazz = ZeevexCluster::Util::EventLoop::Future
+describe ZeevexCluster::Util::Future do
+  clazz = ZeevexCluster::Util::Future
 
 
   context 'before receiving value' do

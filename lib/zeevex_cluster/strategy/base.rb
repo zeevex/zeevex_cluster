@@ -3,8 +3,8 @@ require 'zeevex_cluster/strategy'
 
 module ZeevexCluster::Strategy
   class Base
-    include ZeevexCluster::Util
-    include ZeevexCluster::Hooks
+    include ZeevexCluster::Util::Logging
+    include ZeevexCluster::Util::Hooks
     # include ZeevexThreadsafe::ThreadSafer
 
     def initialize(options = {})
