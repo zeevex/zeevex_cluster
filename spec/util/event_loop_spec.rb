@@ -77,5 +77,55 @@ describe ZeevexCluster::Util::EventLoop do
       queue.pop.should == "done"
     end
   end
+
+  context 'null event loop' do
+    let :loop do
+      ZeevexCluster::Util::EventLoop::Null.new
+    end
+
+    it 'should not run the callable provided' do
+      foo = 100
+      future = loop.enqueue do
+        foo += 1
+      end
+      future.should be_ready
+      foo.should == 100
+    end
+
+    it 'should return nil in the future' do
+      future = loop.enqueue do
+        75
+      end
+      future.should be_ready
+      future.value.should be_nil
+    end
+  end
+
+  context 'inline event loop' do
+    let :loop do
+      ZeevexCluster::Util::EventLoop::Inline.new
+    end
+
+    it 'should run the callable provided' do
+      Thread.exclusive do
+        foo = 100
+        future = loop.enqueue do
+          foo += 1
+        end
+        future.should be_ready
+        foo.should == 101
+      end
+    end
+
+    it 'should return the value in the future' do
+      Thread.exclusive do
+        future = loop.enqueue do
+          75
+        end
+        future.should be_ready
+        future.value.should == 75
+      end
+    end
+  end
 end
 
