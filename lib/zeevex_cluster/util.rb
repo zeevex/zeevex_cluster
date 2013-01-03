@@ -5,7 +5,6 @@ module ZeevexCluster
         base.class_eval do
           include ZeevexCluster::Util::Hooks
           include ZeevexCluster::Util::Logging
-          include ZeevexCluster::Util::EventLoop
         end
       end
     end

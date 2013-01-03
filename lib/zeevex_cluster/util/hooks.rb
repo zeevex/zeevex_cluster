@@ -3,10 +3,35 @@ module ZeevexCluster
     module Hooks
       include ZeevexCluster::Util::Logging
 
-      def _run_hook(hook_name, *args)
+      HookCallable = Struct.new(:identifier, :callable, :eventloop, :preargs) do
+        def initialize(hash)
+          super(*hash.values_at(*self.class.members.map(&:to_sym)) )
+          self.preargs    ||= []
+          self.identifier ||= self.__id__
+        end
+
+        def call(*args)
+          if eventloop
+            eventloop.enqueue do
+              _execute(*args)
+            end
+          else
+            _execute(*args)
+          end
+        end
+
+        protected
+
+        def _execute(*args)
+          arglist = Array(preargs) + Array(args)
+          callable.call(*arglist)
+        end
+      end
+
+      def run_hook(hook_name, *args)
         hook_name = hook_name.to_sym
         logger.debug "<running hook #{hook_name}(#{args.inspect})>"
-        if @hooks[hook_name]
+        if @hooks && @hooks[hook_name]
           Array(@hooks[hook_name]).each do |hook|
             hook.call(self, *args)
           end
@@ -16,41 +41,52 @@ module ZeevexCluster
         end
       end
 
-      def run_hook(hook_name, *args)
-        if @hook_run_loop
-          @hook_run_loop.enqueue do
-            _run_hook(hook_name, *args)
-          end
-        else
-          _run_hook(hook_name, *args)
-        end
-      end
-
       #
       # Takes a hash of hook_name_symbol => hooklist
       # hooklist can be a single proc or array of procs
       #
-      def add_hooks(hookmap)
+      def add_hooks(hookmap, options = {})
         hookmap.each do |(name, val)|
           Array(val).each do |hook|
-            add_hook name.to_sym, hook
+            add_hook name.to_sym, hook, options
           end
         end
       end
 
-      def add_hook(hook_name, observer)
+      def add_hook(hook_name, observer = nil, options = {}, &block)
         @hooks            ||= {}
         @hooks[hook_name] ||= []
-        @hooks[hook_name] << observer
+        hook = _make_observer(observer || block, options)
+        @hooks[hook_name] << hook
+        hook.identifier
       end
 
-      def add_hook_observer(observer)
+      def add_hook_observer(observer = nil, options={}, &block)
         @hook_observers ||= []
-        @hook_observers << observer
+        hook = _make_observer(observer || block, options)
+        @hook_observers << hook
+        hook.identifier
+      end
+
+      def remove_hook(hook_name, identifier)
+        return unless @hooks && @hooks[hook_name]
+        @hooks[hook_name].reject! {|hook| hook.identifier == identifier }
+      end
+
+      def remove_hook_observer(identifier)
+        return unless @hook_observers
+        @hook_observers.reject! {|hook| hook.identifier == identifier }
       end
 
       def use_run_loop_for_hooks(runloop)
         @hook_run_loop = runloop
+      end
+
+      def _make_observer(callable, options = {})
+        raise ArgumentError, "Must provide callable or block" if callable.nil?
+        HookCallable.new({:eventloop => @hook_run_loop}.
+                             merge(options).
+                             merge(:callable => callable)).freeze
       end
 
     end
