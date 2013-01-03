@@ -58,7 +58,7 @@ describe ZeevexCluster::Util::EventLoop do
     end
   end
 
-  context 'on_event_loop' do
+  context '#on_event_loop' do
     let :queue do
       Queue.new
     end
@@ -75,6 +75,32 @@ describe ZeevexCluster::Util::EventLoop do
         queue << "done"
       end
       queue.pop.should == "done"
+    end
+  end
+
+  context '#run_and_wait' do
+    let :queue do
+      Queue.new
+    end
+
+    it 'should not return a future, but the result of the computation' do
+      loop.run_and_wait { queue }.should == queue
+    end
+
+    it 'should execute the task on a different thread from client code' do
+      loop.run_and_wait { queue << Thread.current.__id__ }
+      queue.pop.should_not == Thread.current.__id__
+    end
+
+    it 'should execute the task synchronously when called from event loop' do
+      res = loop.run_and_wait do
+        loop.run_and_wait { queue << "foo" }
+        queue << "done"
+        queue.pop.should == "foo"
+        "hey"
+      end
+      queue.pop.should == "done"
+      res.should == "hey"
     end
   end
 

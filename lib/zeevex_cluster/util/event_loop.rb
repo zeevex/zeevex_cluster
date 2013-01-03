@@ -64,6 +64,7 @@ module ZeevexCluster::Util
       future = ZeevexCluster::Util::Future.new(runnable || block)
       if in_event_loop?
         future.execute
+        future
       else
         enqueue future, &block
       end
