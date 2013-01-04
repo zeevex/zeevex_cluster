@@ -131,6 +131,7 @@ describe ZeevexCluster::Util::Future do
     end
 
     it 'should allow multiple threads to wait' do
+      @value = 0
       threads = []
       5.times do
         threads << Thread.new do
@@ -139,9 +140,10 @@ describe ZeevexCluster::Util::Future do
       end
       sleep 1
       queue.should be_empty
-      subject.set_result { 10 }
+      subject.set_result { @value += 1 }
       threads.map &:join
       queue.size.should == 5
+      @value.should == 1
     end
   end
 end
