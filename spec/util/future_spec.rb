@@ -123,5 +123,26 @@ describe ZeevexCluster::Util::Future do
       future.execute
     end
   end
+
+  context 'access from multiple threads' do
+    subject { clazz.new(nil) }
+    let :queue do
+      Queue.new
+    end
+
+    it 'should allow multiple threads to wait' do
+      threads = []
+      5.times do
+        threads << Thread.new do
+          queue << subject.value
+        end
+      end
+      sleep 1
+      queue.should be_empty
+      subject.set_result { 10 }
+      threads.map &:join
+      queue.size.should == 5
+    end
+  end
 end
 

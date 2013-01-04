@@ -10,6 +10,7 @@ class ZeevexCluster::Util::Future
     end
     @computation = computation || block
     @mutex       = Mutex.new
+    @exec_mutex  = Mutex.new
     @queue       = Queue.new
     @exception   = nil
     @done        = false
@@ -34,7 +35,7 @@ class ZeevexCluster::Util::Future
   end
 
   def execute
-    @mutex.synchronize do
+    @exec_mutex.synchronize do
       _execute
     end
   end
@@ -56,8 +57,8 @@ class ZeevexCluster::Util::Future
   def value(reraise = true)
     @mutex.synchronize do
       unless @done
-        @done   = true
         @result = @queue.pop
+        @done   = true
       end
       if @exception && reraise
         raise @exception
@@ -74,7 +75,7 @@ class ZeevexCluster::Util::Future
   end
 
   def set_result(&block)
-    @mutex.synchronize do
+    @exec_mutex.synchronize do
       raise ArgumentError, "Must supply block" unless block_given?
       raise ArgumentError, "Already supplied block" if @computation
       raise ArgumentError, "Future already executed" if @done
