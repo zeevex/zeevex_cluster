@@ -105,13 +105,13 @@ describe ZeevexCluster::Util::Future do
     end
 
     it 'should notify observer after set_result' do
-      observer.should_receive(:update)
+      observer.should_receive(:update).with(subject, 10)
       subject.add_observer observer
       subject.set_result { 10 }
     end
 
     it 'should notify observer after set_result raises exception' do
-      observer.should_receive(:update)
+      observer.should_receive(:update).with(subject, nil)
       subject.add_observer observer
       subject.set_result { raise "foo" }
     end

@@ -22,14 +22,15 @@ class ZeevexCluster::Util::Future
   #
   def _execute
     raise ArgumentError, "Cannot execute if callable not provided at initialization" unless @computation
+    res = nil
     @executed = true
-    @queue << @computation.call
+    @queue << (res = @computation.call)
   rescue Exception
     @exception = $!
     @queue    << $!
   ensure
     changed
-    notify_observers
+    notify_observers(self, res)
   end
 
   def execute
