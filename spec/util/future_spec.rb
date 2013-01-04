@@ -5,29 +5,50 @@ require 'zeevex_cluster/util/event_loop.rb'
 describe ZeevexCluster::Util::Future do
   clazz = ZeevexCluster::Util::Future
 
-  context 'argument checking' do
+  let :empty_proc do
+    Proc.new { 8800 }
+  end
 
-    it 'should allow neither a callable nor a block' do
-      expect { clazz.new }.
-        not_to raise_error(ArgumentError)
+  let :sleep_proc do
+    Proc.new { sleep 60 }
+  end
+
+  let :queue do
+    Queue.new
+  end
+
+  before :each do
+    loop = ZeevexCluster::Util::EventLoop.new
+    loop.start
+    # oldloop = ZeevexCluster::Util::Future.class_eval do
+    #   @@event_loop
+    # end
+    # Thread.new { oldloop.stop }
+    ZeevexCluster::Util::Future.worker_pool = loop
+  end
+
+  context 'argument checking' do
+    it 'should require a callable or a block' do
+      expect { clazz.create }.
+        to raise_error(ArgumentError)
     end
 
     it 'should not allow both a callable AND a block' do
       expect {
-        clazz.new(Proc.new { 2 }) do
+        clazz.create(empty_proc) do
           1
         end
       }.to raise_error(ArgumentError)
     end
 
     it 'should accept a proc' do
-      expect { clazz.new(Proc.new {}) }.
+      expect { clazz.create(empty_proc) }.
         not_to raise_error(ArgumentError)
     end
 
     it 'should accept a block' do
       expect {
-        clazz.new do
+        clazz.create do
           1
         end
       }.not_to raise_error(ArgumentError)
@@ -35,15 +56,20 @@ describe ZeevexCluster::Util::Future do
   end
 
   context 'before receiving value' do
-    subject { clazz.new() }
+    subject { clazz.create(sleep_proc) }
     it { should_not be_ready }
   end
 
-  context 'after using set_result' do
-    subject { clazz.new(nil) }
+  context 'after executing' do
+    subject {
+      clazz.create do
+        @counter += 1
+      end
+    }
+
     before do
       @counter = 55
-      subject.set_result { @counter += 1 }
+      subject.wait
     end
 
     it          { should be_ready }
@@ -57,16 +83,20 @@ describe ZeevexCluster::Util::Future do
   context 'with exception' do
     class FooBar < StandardError; end
     subject do
-      clazz.new lambda {
+      clazz.create do
+        # binding.pry
         raise FooBar, "test"
-      }
+      end
     end
 
     before do
-      subject.execute
+      subject.wait
     end
 
-    it { should be_ready }
+    it 'should be ready' do
+      subject.should be_ready
+    end
+    
     it 'should reraise exception' do
       expect { subject.value }.
         to raise_error(FooBar)
@@ -80,7 +110,7 @@ describe ZeevexCluster::Util::Future do
   end
 
   context '#wait' do
-    subject { clazz.new }
+    subject { clazz.create(Proc.new { queue.pop }) }
     it 'should wait for 2 seconds' do
       t_start = Time.now
       res = subject.wait 2
@@ -91,7 +121,7 @@ describe ZeevexCluster::Util::Future do
 
     it 'should return immediately if ready' do
       t_start = Time.now
-      subject.set_result { 99 }
+      queue << 99
       res = subject.wait 2
       t_end = Time.now
       (t_end-t_start).round.should == 0
@@ -100,48 +130,48 @@ describe ZeevexCluster::Util::Future do
   end
 
   context 'observing' do
-    subject { clazz.new(nil) }
+    subject { clazz.create(Proc.new { queue.pop; @callable.call }, :observer => observer) }
     let :observer do
       mock()
     end
 
     it 'should notify observer after set_result' do
+      @callable = Proc.new { 10 }
       observer.should_receive(:update).with(subject, 10, true)
-      subject.add_observer observer
-      subject.set_result { 10 }
+      queue << 1
+      subject.wait
     end
 
     it 'should notify observer after set_result raises exception' do
+      @callable = Proc.new { raise "foo" }
       observer.should_receive(:update).with(subject, kind_of(Exception), false)
-      subject.add_observer observer
-      subject.set_result { raise "foo" }
-    end
-
-    it 'should notify observer after #execute' do
-      future = clazz.new(Proc.new { 4 + 20 })
-      observer.should_receive(:update)
-      future.add_observer observer
-      future.execute
+      queue << 1
+      subject.wait
     end
   end
 
   context 'access from multiple threads' do
-    subject { clazz.new(nil) }
-    let :queue do
+
+    let :delay_queue do
       Queue.new
+    end
+
+    let :future do
+      clazz.create(Proc.new { delay_queue.pop; @value += 1})
     end
 
     before do
       @value = 20
+      future
       threads = []
       5.times do
         threads << Thread.new do
-          queue << subject.value
+          queue << future.value
         end
       end
       Thread.pass
       @queue_size_before_set = queue.size
-      subject.set_result { @value += 1 }
+      delay_queue << "proceed"
       threads.map &:join
     end
 

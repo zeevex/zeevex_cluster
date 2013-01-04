@@ -5,8 +5,8 @@ module ZeevexCluster::Util
   class EventLoop
     def initialize(options = {})
       @options = options
-      @mutex   = Mutex.new
-      @queue   = Queue.new
+      @mutex   = options.delete(:mutex) || Mutex.new
+      @queue   = options.delete(:queue) || Queue.new
       @state   = :stopped
     end
 
@@ -27,7 +27,11 @@ module ZeevexCluster::Util
     def stop
       return unless @state == :started
       enqueue { @stop_requested = true }
-      @thread.join
+      unless @thread.join(1)
+        @thread.kill
+        @thread.join(0)
+      end
+
       @thread = nil
       @state = :stopped
     end
@@ -47,6 +51,20 @@ module ZeevexCluster::Util
       to_run
     end
 
+    def <<(callable)
+      enqueue(callable)
+    end
+
+    def flush
+      @queue.clear
+    end
+
+    def reset
+      stop
+      flush
+      start
+    end
+
     #
     # Returns true if the method was called from code executing on the event loop's thread
     #
@@ -61,9 +79,11 @@ module ZeevexCluster::Util
     #
     def on_event_loop(runnable = nil, &block)
       return unless runnable || block_given?
-      promise = ZeevexCluster::Util::Promise.new(runnable || block)
+      promise = (runnable && runnable.is_a?(ZeevexCluster::Util::Delayed)) ?
+                 runnable :
+                 ZeevexCluster::Util::Promise.create(runnable, &block)
       if in_event_loop?
-        promise.execute
+        promise.call
         promise
       else
         enqueue promise, &block
