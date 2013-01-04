@@ -37,7 +37,7 @@ class ZeevexCluster::Util::Delayed
 
   def wait(timeout = nil)
     Timeout::timeout(timeout) do
-      value
+      value(false)
       true
     end
   rescue Timeout::Error
@@ -69,6 +69,12 @@ class ZeevexCluster::Util::Delayed
     @executed = true
   end
 
+
+  def _smash(ex)
+    @exception = ex
+    _fulfill ex, false
+  end
+
   ###
 
   module QueueBased
@@ -76,11 +82,6 @@ class ZeevexCluster::Util::Delayed
 
     def _initialize_queue
       @queue = Queue.new
-    end
-
-    def _smash(exception)
-      @exception = $!
-      _fulfill $!, false
     end
 
     def _fulfill(value, success = true)
