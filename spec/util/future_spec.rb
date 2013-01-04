@@ -130,20 +130,36 @@ describe ZeevexCluster::Util::Future do
       Queue.new
     end
 
-    it 'should allow multiple threads to wait' do
-      @value = 0
+    before do
+      @value = 20
       threads = []
       5.times do
         threads << Thread.new do
           queue << subject.value
         end
       end
-      sleep 1
-      queue.should be_empty
+      Thread.pass
+      @queue_size_before_set = queue.size
       subject.set_result { @value += 1 }
       threads.map &:join
+    end
+
+    it 'should block all threads before set_result' do
+      @queue_size_before_set.should == 0
+    end
+
+    it 'should allow all threads to receive a value' do
       queue.size.should == 5
-      @value.should == 1
+    end
+
+    it 'should only evaluate the computation once' do
+      @value.should == 21
+    end
+
+    it 'should send the same value to all threads' do
+      list = []
+      5.times { list << queue.pop }
+      list.should == [21,21,21,21,21]
     end
   end
 end
