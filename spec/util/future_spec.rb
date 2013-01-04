@@ -33,18 +33,9 @@ describe ZeevexCluster::Util::Future do
     end
   end
 
-
   context 'before receiving value' do
     subject { clazz.new() }
     it { should_not be_ready }
-
-    ## queue.wait not available in ruby 1.8.7
-    #it 'should wait for 2 seconds' do
-    #  t_start = Time.now
-    #  future.wait 10
-    #  t_end = Time.now
-    #  (t_end-t_start).should_be 10
-    #end
   end
 
   context 'after using set_result' do
@@ -84,6 +75,26 @@ describe ZeevexCluster::Util::Future do
       expect { subject.value(false) }.
         not_to raise_error(FooBar)
       subject.value(false).should be_a(FooBar)
+    end
+  end
+
+  context '#wait' do
+    subject { clazz.new }
+    it 'should wait for 2 seconds' do
+      t_start = Time.now
+      res = subject.wait 2
+      t_end = Time.now
+      (t_end-t_start).round.should == 2
+      res.should be_false
+    end
+
+    it 'should return immediately if ready' do
+      t_start = Time.now
+      subject.set_result { 99 }
+      res = subject.wait 2
+      t_end = Time.now
+      (t_end-t_start).round.should == 0
+      res.should be_true
     end
   end
 

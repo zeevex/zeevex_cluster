@@ -1,4 +1,5 @@
 require 'observer'
+require 'timeout'
 
 class ZeevexCluster::Util::Future
   include Observable
@@ -82,7 +83,12 @@ class ZeevexCluster::Util::Future
     end
   end
 
-  #def wait(timeout = nil)
-  #  @queue.wait timeout
-  #end
+  def wait(timeout = nil)
+    Timeout::timeout(timeout) do
+      value
+      true
+    end
+  rescue Timeout::Error
+    false
+  end
 end
