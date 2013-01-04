@@ -1,6 +1,13 @@
+require 'observer'
+
 class ZeevexCluster::Util::Future
-  def initialize(computation)
-    @computation = computation
+  include Observable
+
+  def initialize(computation = nil, &block)
+    if computation && block
+      raise ArgumentError, "must supply a callable OR a block or neither, but not both"
+    end
+    @computation = computation || block
     @mutex       = Mutex.new
     @queue       = Queue.new
     @exception   = nil
@@ -12,12 +19,22 @@ class ZeevexCluster::Util::Future
   #
   # not MT-safe; only to be called from executor thread
   #
-  def execute
+  def _execute
+    raise ArgumentError, "Cannot execute if callable not provided at initialization" unless @computation
     @executed = true
     @queue << @computation.call
   rescue Exception
     @exception = $!
     @queue    << $!
+  ensure
+    changed
+    notify_observers
+  end
+
+  def execute
+    @mutex.synchronize do
+      _execute
+    end
   end
 
   def call
@@ -61,7 +78,7 @@ class ZeevexCluster::Util::Future
       raise ArgumentError, "Future already executed" if @done
 
       @computation = block
-      execute
+      _execute
     end
   end
 

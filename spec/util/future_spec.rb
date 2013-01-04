@@ -4,9 +4,38 @@ require 'zeevex_cluster/util/event_loop.rb'
 describe ZeevexCluster::Util::Future do
   clazz = ZeevexCluster::Util::Future
 
+  context 'argument checking' do
+
+    it 'should allow neither a callable nor a block' do
+      expect { clazz.new }.
+        not_to raise_error(ArgumentError)
+    end
+
+    it 'should not allow both a callable AND a block' do
+      expect {
+        clazz.new(Proc.new { 2 }) do
+          1
+        end
+      }.to raise_error(ArgumentError)
+    end
+
+    it 'should accept a proc' do
+      expect { clazz.new(Proc.new {}) }.
+        not_to raise_error(ArgumentError)
+    end
+
+    it 'should accept a block' do
+      expect {
+        clazz.new do
+          1
+        end
+      }.not_to raise_error(ArgumentError)
+    end
+  end
+
 
   context 'before receiving value' do
-    subject { clazz.new(nil) }
+    subject { clazz.new() }
     it { should_not be_ready }
 
     ## queue.wait not available in ruby 1.8.7
@@ -55,6 +84,32 @@ describe ZeevexCluster::Util::Future do
       expect { subject.value(false) }.
         not_to raise_error(FooBar)
       subject.value(false).should be_a(FooBar)
+    end
+  end
+
+  context 'observing' do
+    subject { clazz.new(nil) }
+    let :observer do
+      mock()
+    end
+
+    it 'should notify observer after set_result' do
+      observer.should_receive(:update)
+      subject.add_observer observer
+      subject.set_result { 10 }
+    end
+
+    it 'should notify observer after set_result raises exception' do
+      observer.should_receive(:update)
+      subject.add_observer observer
+      subject.set_result { raise "foo" }
+    end
+
+    it 'should notify observer after #execute' do
+      future = clazz.new(Proc.new { 4 + 20 })
+      observer.should_receive(:update)
+      future.add_observer observer
+      future.execute
     end
   end
 end
