@@ -105,11 +105,15 @@ module ZeevexCluster::Util
     def process
       while !@stop_requested
         begin
-          @queue.pop.call
+          process_one
         rescue
           ZeevexCluster.logger.error %{Exception caught in event loop: #{$!.inspect}: #{$!.backtrace.join("\n")}}
         end
       end
+    end
+
+    def process_one
+      @queue.pop.call
     end
 
     public
@@ -136,7 +140,7 @@ module ZeevexCluster::Util
       def stop; end
       def enqueue(callable = nil, &block)
         res = super
-        @queue.pop.call
+        process_one
         res
       end
       def in_event_loop?; true; end
