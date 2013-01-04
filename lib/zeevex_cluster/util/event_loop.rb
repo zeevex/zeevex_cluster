@@ -1,5 +1,5 @@
 require 'thread'
-require 'zeevex_cluster/util/future'
+require 'zeevex_cluster/util/promise'
 
 module ZeevexCluster::Util
   class EventLoop
@@ -33,8 +33,8 @@ module ZeevexCluster::Util
     end
 
     #
-    # Enqueue any callable object (including a Future) to the event loop
-    # and return a Future object which can be used to fetch the return value.
+    # Enqueue any callable object (including a Promise or Future or other Delayed class) to the event loop
+    # and return a Delayed object which can be used to fetch the return value.
     #
     # Strictly obeys ordering.
     #
@@ -42,7 +42,7 @@ module ZeevexCluster::Util
       to_run = callable || block
       raise ArgumentError, "Must provide proc or block arg" unless to_run
 
-      to_run = ZeevexCluster::Util::Future.new(to_run) unless to_run.is_a?(ZeevexCluster::Util::Future)
+      to_run = ZeevexCluster::Util::Promise.new(to_run) unless to_run.is_a?(ZeevexCluster::Util::Delayed)
       @queue << to_run
       to_run
     end
@@ -61,23 +61,23 @@ module ZeevexCluster::Util
     #
     def on_event_loop(runnable = nil, &block)
       return unless runnable || block_given?
-      future = ZeevexCluster::Util::Future.new(runnable || block)
+      promise = ZeevexCluster::Util::Promise.new(runnable || block)
       if in_event_loop?
-        future.execute
-        future
+        promise.execute
+        promise
       else
-        enqueue future, &block
+        enqueue promise, &block
       end
     end
 
     #
-    # Returns the value from the computation rather than a Future.  Has similar semantics to
+    # Returns the value from the computation rather than a Promise.  Has similar semantics to
     # `on_event_loop` - if this is called from the event loop, it just executes the
     # computation synchronously ahead of any other queued computations
     #
     def run_and_wait(runnable = nil, &block)
-      future = on_event_loop(runnable, &block)
-      future.value
+      promise = on_event_loop(runnable, &block)
+      promise.value
     end
 
     protected
@@ -94,13 +94,13 @@ module ZeevexCluster::Util
 
     public
 
-    # event loop which throws away all events without running, returning nil in all futures
+    # event loop which throws away all events without running, returning nil from all promises
     class Null
       def initialize(options = {}); end
       def start; end
       def stop; end
       def enqueue(callable = nil, &block)
-        to_run = ZeevexCluster::Util::Future.new(nil) unless to_run.is_a?(ZeevexCluster::Util::Future)
+        to_run = ZeevexCluster::Util::Promise.new unless to_run.is_a?(ZeevexCluster::Util::Delayed)
         to_run.set_result { nil }
         to_run
       end

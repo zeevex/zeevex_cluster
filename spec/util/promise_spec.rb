@@ -2,8 +2,8 @@ require File.join(File.dirname(__FILE__), '../spec_helper')
 require 'zeevex_cluster/util/future.rb'
 require 'zeevex_cluster/util/event_loop.rb'
 
-describe ZeevexCluster::Util::Future do
-  clazz = ZeevexCluster::Util::Future
+describe ZeevexCluster::Util::Promise do
+  clazz = ZeevexCluster::Util::Promise
 
   context 'argument checking' do
 
@@ -106,13 +106,13 @@ describe ZeevexCluster::Util::Future do
     end
 
     it 'should notify observer after set_result' do
-      observer.should_receive(:update).with(subject, 10)
+      observer.should_receive(:update).with(subject, 10, true)
       subject.add_observer observer
       subject.set_result { 10 }
     end
 
     it 'should notify observer after set_result raises exception' do
-      observer.should_receive(:update).with(subject, nil)
+      observer.should_receive(:update).with(subject, kind_of(Exception), false)
       subject.add_observer observer
       subject.set_result { raise "foo" }
     end

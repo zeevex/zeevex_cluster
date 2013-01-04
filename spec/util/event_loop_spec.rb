@@ -1,4 +1,5 @@
 require File.join(File.dirname(__FILE__), '../spec_helper')
+require 'zeevex_cluster/util/promise.rb'
 require 'zeevex_cluster/util/event_loop.rb'
 
 describe ZeevexCluster::Util::EventLoop do
@@ -11,18 +12,18 @@ describe ZeevexCluster::Util::EventLoop do
 
   context 'basic usage' do
     it 'should allow enqueue of a proc' do
-      loop.enqueue(Proc.new { true }).should be_a(ZeevexCluster::Util::Future)
+      loop.enqueue(Proc.new { true }).should be_a(ZeevexCluster::Util::Promise)
     end
 
     it 'should allow enqueue of a block' do
       loop.enqueue do
         true
-      end.should be_a(ZeevexCluster::Util::Future)
+      end.should be_a(ZeevexCluster::Util::Promise)
     end
 
-    it 'should allow enqueue of a Future, and return same future' do
-      future = ZeevexCluster::Util::Future.new(Proc.new {true})
-      loop.enqueue(future).should == future
+    it 'should allow enqueue of a Promise, and return same promise' do
+      promise = ZeevexCluster::Util::Promise.new(Proc.new {true})
+      loop.enqueue(promise).should == promise
     end
   end
 
@@ -36,12 +37,12 @@ describe ZeevexCluster::Util::EventLoop do
       queue.pop.should_not == Thread.current.__id__
     end
 
-    it 'should return the callable\'s value in the returned future' do
+    it 'should return the callable\'s value in the returned promise' do
       res = loop.enqueue { 100 * 2 }
       res.value.should == 200
     end
 
-    it 'should update the future only when ready' do
+    it 'should update the promise only when ready' do
       res = loop.enqueue { queue.pop; "foo" }
       res.should_not be_ready
       queue << "go ahead"
@@ -83,7 +84,7 @@ describe ZeevexCluster::Util::EventLoop do
       Queue.new
     end
 
-    it 'should not return a future, but the result of the computation' do
+    it 'should not return a promise, but the result of the computation' do
       loop.run_and_wait { queue }.should == queue
     end
 
@@ -111,19 +112,19 @@ describe ZeevexCluster::Util::EventLoop do
 
     it 'should not run the callable provided' do
       foo = 100
-      future = loop.enqueue do
+      promise = loop.enqueue do
         foo += 1
       end
-      future.should be_ready
+      promise.should be_ready
       foo.should == 100
     end
 
-    it 'should return nil in the future' do
-      future = loop.enqueue do
+    it 'should return nil in the promise' do
+      promise = loop.enqueue do
         75
       end
-      future.should be_ready
-      future.value.should be_nil
+      promise.should be_ready
+      promise.value.should be_nil
     end
   end
 
@@ -135,21 +136,21 @@ describe ZeevexCluster::Util::EventLoop do
     it 'should run the callable provided' do
       Thread.exclusive do
         foo = 100
-        future = loop.enqueue do
+        promise = loop.enqueue do
           foo += 1
         end
-        future.should be_ready
+        promise.should be_ready
         foo.should == 101
       end
     end
 
-    it 'should return the value in the future' do
+    it 'should return the value in the promise' do
       Thread.exclusive do
-        future = loop.enqueue do
+        promise = loop.enqueue do
           75
         end
-        future.should be_ready
-        future.value.should == 75
+        promise.should be_ready
+        promise.value.should == 75
       end
     end
   end

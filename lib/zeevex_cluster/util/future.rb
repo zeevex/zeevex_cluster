@@ -1,7 +1,8 @@
 require 'observer'
 require 'timeout'
+require 'zeevex_cluster/util/delayed'
 
-class ZeevexCluster::Util::Future
+class ZeevexCluster::Util::Future < ZeevexCluster::Util::Delayed
   include Observable
 
   def initialize(computation = nil, &block)
