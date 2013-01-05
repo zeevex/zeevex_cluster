@@ -5,6 +5,18 @@ require 'thread'
 #
 class ZeevexCluster::Util::Delayed
 
+  module ConvenienceMethods
+    def future(*args, &block)
+      ZeevexCluster::Util::Future.__send__(:create, *args, &block)
+    end
+
+    def promise(*args, &block)
+      ZeevexCluster::Util::Promise.__send__(:create, *args, &block)
+    end
+
+    alias_method :delay, :promise
+  end
+
   def exception
     @mutex.synchronize do
       @exception
@@ -159,4 +171,8 @@ class ZeevexCluster::Util::Delayed
   end
 
   class CancelledException < StandardError; end
+end
+
+module ZeevexCluster::Util
+  extend(ZeevexCluster::Util::Delayed::ConvenienceMethods)
 end

@@ -21,7 +21,7 @@ class ZeevexCluster::Util::Promise < ZeevexCluster::Util::Delayed
     bind(computation, &block) if (computation || block)
   end
 
-  def self.create(callable, &block)
+  def self.create(callable = nil, &block)
     return callable if callable && callable.is_a?(ZeevexCluster::Util::Delayed)
     new(callable, &block)
   end
