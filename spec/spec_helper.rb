@@ -7,6 +7,7 @@ require 'zeevex_cluster/unclustered'
 require 'zeevex_cluster/unclustered'
 
 require 'pry'
+require 'timeout'
 
 require File.expand_path(File.dirname(__FILE__) + '/shared_master_examples.rb')
 require File.expand_path(File.dirname(__FILE__) + '/shared_non_master_examples.rb')

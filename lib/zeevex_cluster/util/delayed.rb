@@ -17,8 +17,12 @@ class ZeevexCluster::Util::Delayed
 
   def ready?
     @mutex.synchronize do
-      @executed || @done
+      executed?
     end
+  end
+
+  def executed?
+    @executed
   end
 
   def value(reraise = true)
@@ -48,10 +52,14 @@ class ZeevexCluster::Util::Delayed
     @exec_mutex.synchronize do
       raise ArgumentError, "Must supply block" unless block_given?
       raise ArgumentError, "Already supplied block" if bound?
-      raise ArgumentError, "Promise already executed" if @executed || @done
+      raise ArgumentError, "Promise already executed" if executed?
 
       _execute(block)
     end
+  end
+
+  def executed?
+    @executed
   end
 
   protected
@@ -60,6 +68,7 @@ class ZeevexCluster::Util::Delayed
   # not MT-safe; only to be called from executor thread
   #
   def _execute(computation)
+    raise "Already executed" if executed?
     raise ArgumentError, "Cannot execute without computation" unless computation
     res = nil
     _fulfill(res = computation.call)
@@ -119,6 +128,8 @@ class ZeevexCluster::Util::Delayed
 
     def execute
       @exec_mutex.synchronize do
+        return if executed?
+        return if respond_to?(:cancelled?) && cancelled?
         _execute(binding)
       end
     end
@@ -126,6 +137,26 @@ class ZeevexCluster::Util::Delayed
     def call
       execute
     end
-
   end
+
+  module Cancellable
+    def cancelled?
+      @canceled
+    end
+
+    def cancel
+      @exec_mutex.synchronize do
+        return false if executed?
+        return true if cancelled?
+        @canceled = true
+        _smash CancelledException.new
+      end
+    end
+
+    def ready?
+      cancelled? || super
+    end
+  end
+
+  class CancelledException < StandardError; end
 end

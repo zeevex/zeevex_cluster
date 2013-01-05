@@ -5,6 +5,7 @@ require 'zeevex_cluster/util/event_loop'
 
 class ZeevexCluster::Util::Future < ZeevexCluster::Util::Promise
   include Observable
+  include ZeevexCluster::Util::Delayed::Cancellable
 
   @@worker_pool = ZeevexCluster::Util::EventLoop.new
   @@worker_pool.start

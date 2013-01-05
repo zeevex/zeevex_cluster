@@ -17,14 +17,32 @@ describe ZeevexCluster::Util::Future do
     Queue.new
   end
 
-  before :each do
+  let :loop do
     loop = ZeevexCluster::Util::EventLoop.new
+  end
+
+  before :each do
     loop.start
-    # oldloop = ZeevexCluster::Util::Future.class_eval do
-    #   @@event_loop
-    # end
-    # Thread.new { oldloop.stop }
     ZeevexCluster::Util::Future.worker_pool = loop
+  end
+
+  let :pause_queue do
+    Queue.new
+  end
+
+  def pause_futures
+    loop.enqueue do
+      pause_queue.pop
+    end
+  end
+
+  def resume_futures
+    pause_queue << "continue"
+  end
+
+  # ensure previous futures have completed - serial single threaded worker pool necessary
+  def wait_for_queue_to_empty
+    ZeevexCluster::Util::Future.create(Proc.new {}).wait
   end
 
   context 'argument checking' do
@@ -150,18 +168,99 @@ describe ZeevexCluster::Util::Future do
     end
   end
 
-  context 'access from multiple threads' do
-
-    let :delay_queue do
-      Queue.new
+  context 'cancelling' do
+    subject do
+      clazz.create(Proc.new { @value += 1})
     end
 
+    before do
+      @value = 100
+      pause_futures
+    end
+
+    it 'should not be cancelled at creation time' do
+      subject.should_not be_cancelled
+    end
+
+    it 'should not be cancelled after execution' do
+      resume_futures
+      subject.wait
+      subject.should_not be_cancelled
+    end
+
+    it 'should not be cancelled after raising an exception' do
+      future = clazz.create(Proc.new { raise "bar" })
+      resume_futures
+      future.wait
+      future.should_not be_cancelled
+    end
+
+    it 'should be cancelled after cancellation but before execution' do
+      subject.cancel
+      subject.should be_cancelled
+    end
+
+    it 'should not be marked as executed after cancellation but before execution' do
+      subject.cancel
+      subject.should_not be_executed
+    end
+
+    it 'should be marked as ready after cancellation but before execution' do
+      subject.cancel
+      subject.should be_ready
+    end
+
+    it 'should be cancelled after cancellation and attempted execution' do
+      subject.cancel
+      resume_futures
+      wait_for_queue_to_empty
+      subject.should be_cancelled
+    end
+
+    it 'should skip execution after cancellation' do
+      subject.cancel
+      resume_futures
+      wait_for_queue_to_empty
+      subject.should be_cancelled
+      subject.should_not be_executed
+      @value.should == 100
+    end
+
+    it 'should not allow cancellation after execution' do
+      resume_futures
+      wait_for_queue_to_empty
+      subject.cancel.should be_false
+    end
+
+    it 'should raise exception if #value is called on cancelled future' do
+      subject.cancel
+      resume_futures
+      wait_for_queue_to_empty
+      expect { subject.value }.
+        to raise_error(ZeevexCluster::Util::Delayed::CancelledException)
+    end
+
+    it 'should return from wait after processing when cancelled' do
+      subject.cancel
+      resume_futures
+      wait_for_queue_to_empty
+      Timeout::timeout(1) { subject.wait }
+    end
+
+    it 'should return from wait before processing when cancelled' do
+      subject.cancel
+      Timeout::timeout(1) { subject.wait }
+    end
+  end
+
+  context 'access from multiple threads' do
     let :future do
-      clazz.create(Proc.new { delay_queue.pop; @value += 1})
+      clazz.create(Proc.new { @value += 1})
     end
 
     before do
       @value = 20
+      pause_futures
       future
       threads = []
       5.times do
@@ -171,7 +270,7 @@ describe ZeevexCluster::Util::Future do
       end
       Thread.pass
       @queue_size_before_set = queue.size
-      delay_queue << "proceed"
+      resume_futures
       threads.map &:join
     end
 
