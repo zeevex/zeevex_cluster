@@ -19,6 +19,8 @@ module ZeevexCluster::Strategy
 
       reset_state_vars
 
+      _initialize_hook_module
+
       if options[:hooks]
         add_hooks options[:hooks]
       end

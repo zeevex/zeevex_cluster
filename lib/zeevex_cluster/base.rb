@@ -11,6 +11,9 @@ module ZeevexCluster
       @options = {:nodename => Socket.gethostname,
                   :autojoin => true}.merge(options)
       @logger  = @options[:logger]
+
+      _initialize_hook_module
+
       if @options[:hooks]
         add_hooks @options[:hooks]
       end

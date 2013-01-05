@@ -28,6 +28,11 @@ module ZeevexCluster
         end
       end
 
+      def _initialize_hook_module
+        @hooks          = {}
+        @hook_observers = []
+      end
+
       def run_hook(hook_name, *args)
         hook_name = hook_name.to_sym
         logger.debug "<running hook #{hook_name}(#{args.inspect})>"
@@ -54,7 +59,6 @@ module ZeevexCluster
       end
 
       def add_hook(hook_name, observer = nil, options = {}, &block)
-        @hooks            ||= {}
         @hooks[hook_name] ||= []
         hook = _make_observer(observer || block, options)
         @hooks[hook_name] << hook
@@ -62,19 +66,17 @@ module ZeevexCluster
       end
 
       def add_hook_observer(observer = nil, options={}, &block)
-        @hook_observers ||= []
         hook = _make_observer(observer || block, options)
         @hook_observers << hook
         hook.identifier
       end
 
       def remove_hook(hook_name, identifier)
-        return unless @hooks && @hooks[hook_name]
+        return unless @hooks[hook_name]
         @hooks[hook_name].reject! {|hook| hook.identifier == identifier }
       end
 
       def remove_hook_observer(identifier)
-        return unless @hook_observers
         @hook_observers.reject! {|hook| hook.identifier == identifier }
       end
 

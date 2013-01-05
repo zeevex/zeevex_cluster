@@ -4,7 +4,10 @@ require 'zeevex_cluster/util/hooks.rb'
 describe ZeevexCluster::Util::Hooks do
   class HookableClass
     include ZeevexCluster::Util::Hooks
-    # include ZeevexCluster::Util::EventLoop
+
+    def initialize
+      _initialize_hook_module
+    end
   end
 
   let :loop do
