@@ -29,8 +29,11 @@ module ZeevexCluster
       end
 
       def _initialize_hook_module
-        @hooks          = {}
-        @hook_observers = []
+        unless @_hook_module_initialized
+          @hooks          = {}
+          @hook_observers = []
+          @_hook_module_initialized = true
+        end
       end
 
       def run_hook(hook_name, *args)
