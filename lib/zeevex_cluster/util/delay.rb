@@ -20,7 +20,7 @@ class ZeevexCluster::Util::Delay < ZeevexCluster::Util::Delayed
     bind(computation, &block) if (computation || block)
 
     Array(options.delete(:observer) || options.delete(:observers)).each do |observer|
-      self.add_observer observer
+      add_observer observer
     end
   end
 
@@ -41,11 +41,6 @@ class ZeevexCluster::Util::Delay < ZeevexCluster::Util::Delayed
 
   def _fulfill(value, success = true)
     @fulfilled_value = value
-    if respond_to?(:notify_observers)
-      changed
-      notify_observers(self, value, success)
-    end
-    value
   end
 
   def _wait_for_value

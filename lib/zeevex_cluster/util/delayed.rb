@@ -47,7 +47,6 @@ class ZeevexCluster::Util::Delayed
   def executed?
     @executed
   end
-  alias_method :ready?, :executed?
 
   def value(reraise = true)
     @mutex.synchronize do
@@ -99,36 +98,35 @@ class ZeevexCluster::Util::Delayed
     end
     @executed = true
     # run this separately so we can report exceptions in _fulfill rather than capture them
-    _fulfill(result) if (success)
+    _fulfill_and_notify(result) if (success)
   rescue Exception
     puts "*** exception in _fulfill: #{$!.inspect} ***"
   ensure
     @executed = true
   end
 
+  def _fulfill_and_notify(value, success = true)
+    _fulfill(value, success)
+    if respond_to?(:notify_observers)
+      changed
+      begin
+        notify_observers(self, value, success)
+      rescue Exception
+        puts "Exception in notifying observers: #{$!.inspect}"
+      end
+    end
+  end
   #
   # not MT-safe; only to be called from executor thread
   #
   def _smash(ex)
     @exception = ex
-    _fulfill ex, false
+    _fulfill_and_notify ex, false
   end
 
   ###
 
   module LatchBased
-    def value(reraise = true)
-      @_latch.wait
-      unless @done
-        @done   = true
-      end
-      if @exception && reraise
-        raise @exception
-      else
-        @result
-      end
-    end
-
     def wait(timeout = nil)
       @_latch.wait(timeout)
     end
@@ -145,14 +143,6 @@ class ZeevexCluster::Util::Delayed
 
     def _fulfill(value, success = true)
       @result = value
-      if respond_to?(:notify_observers)
-        changed
-        begin
-          notify_observers(self, value, success)
-        rescue Exception
-          puts "Exception in notifying observers: #{$!.inspect}"
-        end
-      end
       @_latch.countdown!
     end
 
@@ -163,6 +153,12 @@ class ZeevexCluster::Util::Delayed
   end
 
   module QueueBased
+    def ready?
+      @exec_mutex.synchronize do
+        @queue.size > 0 || @executed
+      end
+    end
+
     protected
 
     def _initialize_queue
@@ -171,10 +167,6 @@ class ZeevexCluster::Util::Delayed
 
     def _fulfill(value, success = true)
       @queue << value
-      if respond_to?(:notify_observers)
-        changed
-        notify_observers(self, value, success)
-      end
     end
 
     def _wait_for_value
