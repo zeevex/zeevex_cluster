@@ -23,6 +23,7 @@ Gem::Specification.new do |s|
   s.add_dependency 'json'
   s.add_dependency 'zeevex_proxy'
   s.add_dependency 'zeevex_threadsafe'
+  s.add_dependency 'countdownlatch', '~> 1.0.0'
 
   s.add_development_dependency 'rspec', '~> 2.9.0'
   s.add_development_dependency 'rake'

@@ -5,7 +5,7 @@ require 'zeevex_cluster/util/delayed'
 class ZeevexCluster::Util::Promise < ZeevexCluster::Util::Delayed
   include Observable
   include ZeevexCluster::Util::Delayed::Bindable
-  include ZeevexCluster::Util::Delayed::QueueBased
+  include ZeevexCluster::Util::Delayed::LatchBased
 
   def initialize(computation = nil, options = {}, &block)
     @mutex       = Mutex.new
@@ -15,7 +15,7 @@ class ZeevexCluster::Util::Promise < ZeevexCluster::Util::Delayed
     @result      = false
     @executed    = false
 
-    _initialize_queue
+    _initialize_latch
 
     # has to happen after exec_mutex initialized
     bind(computation, &block) if (computation || block)

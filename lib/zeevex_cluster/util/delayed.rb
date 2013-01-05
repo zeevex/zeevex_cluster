@@ -1,4 +1,5 @@
 require 'thread'
+require 'countdownlatch'
 
 #
 # base class for Promise, Future, etc.
@@ -89,10 +90,18 @@ class ZeevexCluster::Util::Delayed
   def _execute(computation)
     raise "Already executed" if executed?
     raise ArgumentError, "Cannot execute without computation" unless computation
-    res = nil
-    _fulfill(res = computation.call)
+    success = false
+    begin
+      result = computation.call
+      success = true
+    rescue Exception
+      _smash($!)
+    end
+    @executed = true
+    # run this separately so we can report exceptions in _fulfill rather than capture them
+    _fulfill(result) if (success)
   rescue Exception
-    _smash($!)
+    puts "*** exception in _fulfill: #{$!.inspect} ***"
   ensure
     @executed = true
   end
@@ -106,6 +115,52 @@ class ZeevexCluster::Util::Delayed
   end
 
   ###
+
+  module LatchBased
+    def value(reraise = true)
+      @_latch.wait
+      unless @done
+        @done   = true
+      end
+      if @exception && reraise
+        raise @exception
+      else
+        @result
+      end
+    end
+
+    def wait(timeout = nil)
+      @_latch.wait(timeout)
+    end
+
+    def ready?
+      @_latch.count == 0
+    end
+
+    protected
+
+    def _initialize_latch
+      @_latch = CountDownLatch.new(1)
+    end
+
+    def _fulfill(value, success = true)
+      @result = value
+      if respond_to?(:notify_observers)
+        changed
+        begin
+          notify_observers(self, value, success)
+        rescue Exception
+          puts "Exception in notifying observers: #{$!.inspect}"
+        end
+      end
+      @_latch.countdown!
+    end
+
+    def _wait_for_value
+      @_latch.wait
+      @result
+    end
+  end
 
   module QueueBased
     protected
@@ -160,15 +215,16 @@ class ZeevexCluster::Util::Delayed
 
   module Cancellable
     def cancelled?
-      @canceled
+      @cancelled
     end
 
     def cancel
       @exec_mutex.synchronize do
         return false if executed?
         return true  if cancelled?
-        @canceled = true
+        @cancelled = true
         _smash CancelledException.new
+        true
       end
     end
 

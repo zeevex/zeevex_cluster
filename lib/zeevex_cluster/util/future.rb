@@ -6,7 +6,7 @@ require 'zeevex_cluster/util/event_loop'
 class ZeevexCluster::Util::Future < ZeevexCluster::Util::Delayed
   include Observable
   include ZeevexCluster::Util::Delayed::Bindable
-  include ZeevexCluster::Util::Delayed::QueueBased
+  include ZeevexCluster::Util::Delayed::LatchBased
   include ZeevexCluster::Util::Delayed::Cancellable
 
   @@worker_pool = ZeevexCluster::Util::EventLoop.new
@@ -22,13 +22,13 @@ class ZeevexCluster::Util::Future < ZeevexCluster::Util::Delayed
     @result      = false
     @executed    = false
 
-    _initialize_queue
+    _initialize_latch
 
     # has to happen after exec_mutex initialized
     bind(computation, &block) if (computation || block)
 
     Array(options.delete(:observer) || options.delete(:observers)).each do |observer|
-      self.add_observer observer
+      add_observer observer
     end
   end
 
