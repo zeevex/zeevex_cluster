@@ -36,24 +36,17 @@ class ZeevexCluster::Util::Delayed
   end
 
   def exception
-    @mutex.synchronize do
-      @exception
-    end
+    @exception
   end
 
   def exception?
     !! @exception
   end
 
-  def ready?
-    @mutex.synchronize do
-      executed?
-    end
-  end
-
   def executed?
     @executed
   end
+  alias_method :ready?, :executed?
 
   def value(reraise = true)
     @mutex.synchronize do
@@ -88,10 +81,6 @@ class ZeevexCluster::Util::Delayed
     end
   end
 
-  def executed?
-    @executed
-  end
-
   protected
 
   #
@@ -108,7 +97,9 @@ class ZeevexCluster::Util::Delayed
     @executed = true
   end
 
-
+  #
+  # not MT-safe; only to be called from executor thread
+  #
   def _smash(ex)
     @exception = ex
     _fulfill ex, false
@@ -146,14 +137,12 @@ class ZeevexCluster::Util::Delayed
     end
 
     def bind(proccy = nil, &block)
-      @exec_mutex.synchronize do
-        raise "Already bound" if bound?
-        if proccy && block
-          raise ArgumentError, "must supply a callable OR a block or neither, but not both"
-        end
-        raise ArgumentError, "Must provide computation as proc or block" unless (proccy || block)
-        @binding = proccy || block
+      raise "Already bound" if bound?
+      if proccy && block
+        raise ArgumentError, "must supply a callable OR a block or neither, but not both"
       end
+      raise ArgumentError, "Must provide computation as proc or block" unless (proccy || block)
+      @binding = proccy || block
     end
 
     def execute
@@ -177,7 +166,7 @@ class ZeevexCluster::Util::Delayed
     def cancel
       @exec_mutex.synchronize do
         return false if executed?
-        return true if cancelled?
+        return true  if cancelled?
         @canceled = true
         _smash CancelledException.new
       end
