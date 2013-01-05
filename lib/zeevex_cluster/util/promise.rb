@@ -7,7 +7,7 @@ class ZeevexCluster::Util::Promise < ZeevexCluster::Util::Delayed
   include ZeevexCluster::Util::Delayed::Bindable
   include ZeevexCluster::Util::Delayed::QueueBased
 
-  def initialize(computation = nil, &block)
+  def initialize(computation = nil, options = {}, &block)
     @mutex       = Mutex.new
     @exec_mutex  = Mutex.new
     @exception   = nil
@@ -19,10 +19,14 @@ class ZeevexCluster::Util::Promise < ZeevexCluster::Util::Delayed
 
     # has to happen after exec_mutex initialized
     bind(computation, &block) if (computation || block)
+
+    Array(options.delete(:observer) || options.delete(:observers)).each do |observer|
+      self.add_observer observer
+    end
   end
 
-  def self.create(callable = nil, &block)
+  def self.create(callable = nil, options = {}, &block)
     return callable if callable && callable.is_a?(ZeevexCluster::Util::Delayed)
-    new(callable, &block)
+    new(callable, options, &block)
   end
 end

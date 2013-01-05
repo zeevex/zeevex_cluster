@@ -15,6 +15,18 @@ class ZeevexCluster::Util::Delayed
     end
 
     alias_method :delay, :promise
+
+    def delayed?(obj)
+      obj.is_a?(ZeevexCluster::Util::Delayed)
+    end
+
+    def promise?(obj)
+      obj.is_a?(ZeevexCluster::Util::Promise)
+    end
+
+    def future?(obj)
+      obj.is_a?(ZeevexCluster::Util::Future)
+    end
   end
 
   def exception
