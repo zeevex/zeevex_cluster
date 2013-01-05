@@ -148,23 +148,28 @@ describe ZeevexCluster::Util::Future do
   end
 
   context 'observing' do
-    subject { clazz.create(Proc.new { queue.pop; @callable.call }, :observer => observer) }
+    subject { clazz.create(Proc.new { @callable.call }, :observer => observer) }
     let :observer do
       mock()
     end
 
+    #
+    #
+    #
     it 'should notify observer after set_result' do
+      pause_futures
       @callable = Proc.new { 10 }
       observer.should_receive(:update).with(subject, 10, true)
-      queue << 1
-      subject.wait
+      resume_futures
+      wait_for_queue_to_empty
     end
 
     it 'should notify observer after set_result raises exception' do
+      pause_futures
       @callable = Proc.new { raise "foo" }
       observer.should_receive(:update).with(subject, kind_of(Exception), false)
-      queue << 1
-      subject.wait
+      resume_futures
+      wait_for_queue_to_empty
     end
   end
 
@@ -176,6 +181,7 @@ describe ZeevexCluster::Util::Future do
     before do
       @value = 100
       pause_futures
+      subject
     end
 
     it 'should not be cancelled at creation time' do

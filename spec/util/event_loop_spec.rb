@@ -65,7 +65,7 @@ describe ZeevexCluster::Util::EventLoop do
     end
 
     it 'should execute the task asynchronously from client code' do
-      loop.on_event_loop { queue << Thread.current.__id__ }
+      loop.on_event_loop { queue << Thread.current.__id__ }.wait
       queue.pop.should_not == Thread.current.__id__
     end
 
@@ -74,7 +74,7 @@ describe ZeevexCluster::Util::EventLoop do
         loop.on_event_loop { queue << "foo" }
         res = queue.pop
         queue << "done"
-      end
+      end.wait
       queue.pop.should == "done"
     end
   end
