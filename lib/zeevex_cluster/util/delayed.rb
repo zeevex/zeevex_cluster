@@ -14,10 +14,16 @@ class ZeevexCluster::Util::Delayed
       ZeevexCluster::Util::Promise.__send__(:create, *args, &block)
     end
 
-    alias_method :delay, :promise
+    def delay(*args, &block)
+      ZeevexCluster::Util::Delay.__send__(:create, *args, &block)
+    end
 
     def delayed?(obj)
       obj.is_a?(ZeevexCluster::Util::Delayed)
+    end
+
+    def delay?(obj)
+      obj.is_a?(ZeevexCluster::Util::Delay)
     end
 
     def promise?(obj)

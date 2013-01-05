@@ -26,9 +26,9 @@ describe ZeevexCluster::Util::Delayed do
     end
 
     context '#delay' do
-      it 'should create a promise given a block' do
+      it 'should create a delay given a block' do
         clazz.delay do
-        end.should be_a(ZeevexCluster::Util::Promise)
+        end.should be_a(ZeevexCluster::Util::Delay)
       end
     end
   end
@@ -37,8 +37,11 @@ describe ZeevexCluster::Util::Delayed do
     let :efuture do
       ZeevexCluster::Util.future(Proc.new {})
     end
-    let :epromise do 
+    let :epromise do
       ZeevexCluster::Util.promise(Proc.new {})
+    end
+    let :edelay do 
+      ZeevexCluster::Util.delay(Proc.new {})
     end
     let :eproc do
       Proc.new {}
@@ -49,6 +52,9 @@ describe ZeevexCluster::Util::Delayed do
       end
       it 'should be true for a future' do
         clazz.delayed?(efuture).should be_true
+      end
+      it 'should be true for a delay' do
+        clazz.delayed?(edelay).should be_true
       end
       it 'should not be true for a proc' do
         clazz.delayed?(eproc).should be_false
@@ -63,6 +69,10 @@ describe ZeevexCluster::Util::Delayed do
       it 'should be false for a promise' do
         clazz.future?(epromise).should be_false
       end
+
+      it 'should be false for a delay' do
+        clazz.future?(edelay).should be_false
+      end
     end
 
     context '#promise?' do
@@ -71,6 +81,21 @@ describe ZeevexCluster::Util::Delayed do
       end
       it 'should be false for a future' do
         clazz.promise?(efuture).should be_false
+      end
+      it 'should be false for a delay' do
+        clazz.promise?(edelay).should be_false
+      end
+    end
+
+    context '#delay?' do
+      it 'should be true for a delay' do
+        clazz.delay?(edelay).should be_true
+      end
+      it 'should be false for a promise' do
+        clazz.delay?(epromise).should be_false
+      end
+      it 'should be false for a future' do
+        clazz.delay?(efuture).should be_false
       end
     end
   end
