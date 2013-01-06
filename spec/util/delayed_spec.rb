@@ -2,6 +2,7 @@ require File.join(File.dirname(__FILE__), '../spec_helper')
 require 'zeevex_cluster/util/delayed.rb'
 require 'zeevex_cluster/util/promise.rb'
 require 'zeevex_cluster/util/future.rb'
+require 'zeevex_cluster/util/delay.rb'
 
 describe ZeevexCluster::Util::Delayed do
   clazz = ZeevexCluster::Util

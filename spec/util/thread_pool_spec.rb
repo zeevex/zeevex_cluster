@@ -31,6 +31,12 @@ describe ZeevexCluster::Util::ThreadPool do
     Atomic.new(0)
   end
 
+  around :each do |ex|
+    Timeout::timeout(10) do
+      ex.run
+    end
+  end
+
   def wait_until(timeout = 5, sleep_sec = 0.1)
     t_start = Time.now
 

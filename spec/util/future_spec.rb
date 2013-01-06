@@ -26,11 +26,18 @@ describe ZeevexCluster::Util::Future do
     ZeevexCluster::Util::Future.worker_pool = loop
   end
 
+  around :each do |ex|
+    Timeout::timeout(10) do
+      ex.run
+    end
+  end
+
   let :pause_queue do
     Queue.new
   end
 
   def pause_futures
+    pause_queue
     loop.enqueue do
       pause_queue.pop
     end

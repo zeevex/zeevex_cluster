@@ -5,6 +5,12 @@ require 'zeevex_cluster/util/event_loop.rb'
 describe ZeevexCluster::Util::Promise do
   clazz = ZeevexCluster::Util::Promise
 
+  around :each do |ex|
+    Timeout::timeout(10) do
+      ex.run
+    end
+  end
+
   context 'argument checking' do
 
     it 'should allow neither a callable nor a block' do
@@ -127,20 +133,19 @@ describe ZeevexCluster::Util::Promise do
 
   context 'access from multiple threads' do
     subject { clazz.new(nil) }
-    let :queue do
-      Queue.new
-    end
 
     before do
       @value = 20
+      subject
+      @queue = Queue.new
       threads = []
       5.times do
         threads << Thread.new do
-          queue << subject.value
+          @queue << subject.value
         end
       end
       Thread.pass
-      @queue_size_before_set = queue.size
+      @queue_size_before_set = @queue.size
       subject.set_result { @value += 1 }
       threads.map &:join
     end
@@ -150,7 +155,7 @@ describe ZeevexCluster::Util::Promise do
     end
 
     it 'should allow all threads to receive a value' do
-      queue.size.should == 5
+      @queue.size.should == 5
     end
 
     it 'should only evaluate the computation once' do
@@ -159,7 +164,7 @@ describe ZeevexCluster::Util::Promise do
 
     it 'should send the same value to all threads' do
       list = []
-      5.times { list << queue.pop }
+      5.times { list << @queue.pop }
       list.should == [21,21,21,21,21]
     end
   end

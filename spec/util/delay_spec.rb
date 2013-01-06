@@ -11,6 +11,12 @@ describe ZeevexCluster::Util::Delay do
     Proc.new { @counter += 1}
   end
 
+  around :each do |ex|
+    Timeout::timeout(30) do
+      ex.run
+    end
+  end
+
   context 'argument checking' do
     it 'should not allow neither a callable nor a block' do
       expect { clazz.new }.
@@ -112,6 +118,7 @@ describe ZeevexCluster::Util::Delay do
   end
 
   context 'access from multiple threads' do
+
     let :pause_queue do
       Queue.new
     end
@@ -127,6 +134,9 @@ describe ZeevexCluster::Util::Delay do
     end
 
     before do
+      subject
+      queue
+
       threads = []
       5.times do
         threads << Thread.new do
