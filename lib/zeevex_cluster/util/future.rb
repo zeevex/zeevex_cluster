@@ -2,6 +2,7 @@ require 'observer'
 require 'timeout'
 require 'zeevex_cluster/util/delayed'
 require 'zeevex_cluster/util/event_loop'
+require 'zeevex_cluster/util/thread_pool'
 
 class ZeevexCluster::Util::Future < ZeevexCluster::Util::Delayed
   include Observable
@@ -9,7 +10,8 @@ class ZeevexCluster::Util::Future < ZeevexCluster::Util::Delayed
   include ZeevexCluster::Util::Delayed::LatchBased
   include ZeevexCluster::Util::Delayed::Cancellable
 
-  @@worker_pool = ZeevexCluster::Util::EventLoop.new
+  # @@worker_pool = ZeevexCluster::Util::EventLoop.new
+  @@worker_pool = ZeevexCluster::Util::ThreadPool::FixedPool.new
   @@worker_pool.start
 
   def initialize(computation = nil, options = {}, &block)
@@ -55,3 +57,4 @@ class ZeevexCluster::Util::Future < ZeevexCluster::Util::Delayed
     alias_method :future, :create
   end
 end
+
