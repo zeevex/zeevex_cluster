@@ -31,9 +31,16 @@ describe ZeevexCluster::Util::ThreadPool do
     Atomic.new(0)
   end
 
-  after do
-    32.times { queue << 1 }
-    pool.stop
+  def wait_until(timeout = 5, sleep_sec = 0.1)
+    t_start = Time.now
+
+    # go ahead and give up our timeslice as we might as well
+    # let somebody else make the condition true
+    Thread.pass unless yield
+    until yield || (Time.now-t_start) >= timeout
+      sleep sleep_sec
+    end
+    yield
   end
 
   shared_examples_for 'thread pool initialization' do
@@ -112,6 +119,7 @@ describe ZeevexCluster::Util::ThreadPool do
 
     it 'should increase busy_count when tasks start' do
       count.times { pool.enqueue { queue.pop } }
+      wait_until { pool.busy_count == count }
       pool.busy_count.should == count
     end
 
@@ -136,11 +144,13 @@ describe ZeevexCluster::Util::ThreadPool do
   shared_examples_for 'thread pool with task queue' do
     it 'should give a total count of backlog in queue' do
       (parallelism + 1).times { pool.enqueue { queue.pop } }
+      wait_until { pool.backlog == 1 }
       pool.backlog.should == 1
     end
 
     it 'should allow flushing jobs from the queue' do
       (parallelism + 1).times { pool.enqueue { queue.pop } }
+      wait_until { pool.backlog == 1 }
       pool.flush
       pool.backlog.should == 0
     end
@@ -186,11 +196,11 @@ describe ZeevexCluster::Util::ThreadPool do
   end
 
   context 'FixedPool' do
-    let :pool do
-      ZeevexCluster::Util::ThreadPool::FixedPool.new(parallelism)
-    end
     let :parallelism do
       32
+    end
+    let :pool do
+      ZeevexCluster::Util::ThreadPool::FixedPool.new(parallelism)
     end
 
     it_should_behave_like 'thread pool initialization'
@@ -200,19 +210,18 @@ describe ZeevexCluster::Util::ThreadPool do
     it_should_behave_like 'thread pool with task queue'
 
     it 'should indicate that the pool is busy when there are tasks in the queue' do
-      (parallelism + 1).times { pool.enqueue { queue.pop } }
+      (parallelism + 1).times { pool.enqueue { sleep 30 } }
+      wait_until { pool.backlog == 1 }
       pool.should be_busy
     end
 
-    it 'should indicate that the pool is busy when there are tasks in the queue' do
-      (parallelism + 1).times { pool.enqueue { queue.pop } }
+    it 'should indicate that there are no free workers when there are tasks in the queue' do
+      (parallelism + 1).times { pool.enqueue { sleep 30 } }
+      wait_until { pool.free_count == 0 }
       pool.free_count.should == 0
-    end
-
-    it 'should indicate that the pool is busy when there are tasks in the queue' do
-      (parallelism + 1).times { pool.enqueue { queue.pop } }
       pool.busy_count.should == parallelism
     end
+
   end
 
   context 'InlineThreadPool' do
