@@ -54,11 +54,11 @@ class ZeevexCluster::Util::Delayed
         @result = _wait_for_value
         @done   = true
       end
-      if @exception && reraise
-        raise @exception
-      else
-        @result
-      end
+    end
+    if @exception && reraise
+      raise @exception
+    else
+      @result
     end
   end
 

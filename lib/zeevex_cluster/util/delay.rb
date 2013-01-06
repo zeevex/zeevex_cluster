@@ -1,5 +1,5 @@
 require 'observer'
-require 'timeout'
+require 'thread'
 require 'zeevex_cluster/util/delayed'
 
 class ZeevexCluster::Util::Delay < ZeevexCluster::Util::Delayed
@@ -17,7 +17,7 @@ class ZeevexCluster::Util::Delay < ZeevexCluster::Util::Delayed
     @executed    = false
 
     # has to happen after exec_mutex initialized
-    bind(computation, &block) if (computation || block)
+    bind(computation, &block)
 
     Array(options.delete(:observer) || options.delete(:observers)).each do |observer|
       add_observer observer
