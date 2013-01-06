@@ -2,6 +2,7 @@ require 'zeevex_cluster/util'
 require 'zeevex_cluster/util/event_loop'
 require 'countdownlatch'
 require 'thread'
+require 'atomic'
 
 module ZeevexCluster::Util::ThreadPool
   module Stubs
@@ -83,6 +84,10 @@ module ZeevexCluster::Util::ThreadPool
       @loop.flush
       true
     end
+
+    def backlog
+      @loop.backlog
+    end
   end
 
   #
@@ -127,17 +132,18 @@ module ZeevexCluster::Util::ThreadPool
     def initialize
       @mutex = Mutex.new
       @group = ThreadGroup.new
-      @busy_count = 0
+      @busy_count = Atomic.new(0)
 
       start
     end
 
     def enqueue(runnable = nil, &block)
+      raise "Must be started" unless @started
       callable = _check_args(runnable, block)
       thr = Thread.new do
-        @mutex.synchronize { @busy_count += 1}
+        @busy_count.update {|x| x + 1}
         callable.call
-        @mutex.synchronize { @busy_count -= 1}
+        @busy_count.update {|x| x - 1}
       end
       @group.add(thr)
     end
@@ -162,12 +168,12 @@ module ZeevexCluster::Util::ThreadPool
         end
 
         @started = false
-        @busy_count = 0
+        @busy_count.set 0
       end
     end
 
     def busy_count
-      @busy_count
+      @busy_count.value
     end
 
     def busy
@@ -175,7 +181,7 @@ module ZeevexCluster::Util::ThreadPool
     end
 
     def worker_count
-      @busy_count
+      @busy_count.value
     end
   end
 
@@ -193,7 +199,7 @@ module ZeevexCluster::Util::ThreadPool
       @queue = Queue.new
       @mutex = Mutex.new
       @group = ThreadGroup.new
-      @busy_count = 0
+      @busy_count = Atomic.new(0)
 
       start
     end
@@ -245,7 +251,7 @@ module ZeevexCluster::Util::ThreadPool
           thr.kill
         end
 
-        @busy_count = 0
+        @busy_count.set 0
         @started = false
       end
     end
@@ -259,7 +265,7 @@ module ZeevexCluster::Util::ThreadPool
     end
 
     def busy_count
-      @busy_count
+      @busy_count.value
     end
 
     def free_count
@@ -317,11 +323,11 @@ module ZeevexCluster::Util::ThreadPool
     protected
 
     def _start_work
-      @mutex.synchronize { @busy_count += 1 }
+      @busy_count.update {|x| x + 1 }
     end
 
     def _end_work
-      @mutex.synchronize { @busy_count -= 1 }
+      @busy_count.update {|x| x - 1 }
     end
 
   end

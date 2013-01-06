@@ -24,6 +24,10 @@ Gem::Specification.new do |s|
   s.add_dependency 'zeevex_proxy'
   s.add_dependency 'zeevex_threadsafe'
   s.add_dependency 'countdownlatch', '~> 1.0.0'
+  s.add_dependency 'atomic', '~> 1.0.0'
+
+  ## other headius utils
+  # s.add_dependency 'thread_safe'
 
   s.add_development_dependency 'rspec', '~> 2.9.0'
   s.add_development_dependency 'rake'
