@@ -12,5 +12,4 @@ module ZeevexCluster
 end
 
 require 'zeevex_cluster/util/logging'
-require 'zeevex_cluster/util/event_loop'
 require 'hookem'
