@@ -275,6 +275,7 @@ describe ZeevexCluster::Util::Future do
       @value = 20
       pause_futures
       future
+      queue
       threads = []
       5.times do
         threads << Thread.new do
