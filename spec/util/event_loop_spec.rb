@@ -9,6 +9,19 @@ describe ZeevexCluster::Util::EventLoop do
   before do
     loop.start
   end
+  let :queue do
+    Queue.new
+  end
+
+  before do
+    queue
+  end
+
+  around :each do |ex|
+    Timeout::timeout(15) do
+      ex.run
+    end
+  end
 
   context 'basic usage' do
     it 'should allow enqueue of a proc' do
@@ -28,9 +41,7 @@ describe ZeevexCluster::Util::EventLoop do
   end
 
   context 'running tasks asynchronously' do
-    let :queue do
-      Queue.new
-    end
+
 
     it 'should execute the task on the event loop' do
       loop.enqueue { queue << Thread.current.__id__ }
@@ -60,10 +71,6 @@ describe ZeevexCluster::Util::EventLoop do
   end
 
   context '#on_event_loop' do
-    let :queue do
-      Queue.new
-    end
-
     it 'should execute the task asynchronously from client code' do
       loop.on_event_loop { queue << Thread.current.__id__ }.wait
       queue.pop.should_not == Thread.current.__id__
@@ -80,10 +87,6 @@ describe ZeevexCluster::Util::EventLoop do
   end
 
   context '#run_and_wait' do
-    let :queue do
-      Queue.new
-    end
-
     it 'should not return a promise, but the result of the computation' do
       loop.run_and_wait { queue }.should == queue
     end

@@ -16,7 +16,7 @@ describe ZeevexCluster::Util::ThreadPool do
   end
 
   let :latch_wait_task do
-    latch.wait
+    Proc.new { latch.wait }
   end
 
   let :queue do
@@ -24,7 +24,7 @@ describe ZeevexCluster::Util::ThreadPool do
   end
 
   let :pop_task do
-    queue.pop
+    Proc.new { queue.pop }
   end
 
   let :atom do
@@ -32,9 +32,17 @@ describe ZeevexCluster::Util::ThreadPool do
   end
 
   around :each do |ex|
-    Timeout::timeout(10) do
+    Timeout::timeout(30) do
       ex.run
     end
+  end
+
+  before do
+    queue
+    pop_task
+    atom
+    latch_wait_task
+    latch
   end
 
   def wait_until(timeout = 5, sleep_sec = 0.1)
@@ -80,10 +88,6 @@ describe ZeevexCluster::Util::ThreadPool do
   end
 
   shared_examples_for 'thread pool running tasks' do
-    let :queue do
-      Queue.new
-    end
-
     it 'should execute the task on a different thread' do
       pool.enqueue { queue << Thread.current.__id__ }
       queue.pop.should_not == Thread.current.__id__
@@ -134,6 +138,8 @@ describe ZeevexCluster::Util::ThreadPool do
       (count / 2).times { queue << "foo" }
       pool.enqueue { latch.countdown!; queue.pop }
       latch.wait
+      # should we need the following?
+      wait_until { pool.busy_count == (count / 2) + 1}
       pool.busy_count.should == (count / 2) + 1
     end
 
@@ -185,10 +191,6 @@ describe ZeevexCluster::Util::ThreadPool do
   end
 
   shared_examples_for 'thread pool control' do
-    let :queue do
-      Queue.new
-    end
-
     it 'should allow enqueueing after a stop/start' do
       pool.stop
       pool.start
