@@ -118,13 +118,16 @@ module ZeevexCluster::Util::ThreadPool
     def initialize
       @mutex = Mutex.new
       @group = ThreadGroup.new
+      @busy_count = 0
 
       start
     end
 
     def enqueue(runnable = nil, &block)
       thr = Thread.new do
+        @mutex.synchronize { @busy_count += 1}
         (runnable || block).call
+        @mutex.synchronize { @busy_count -= 1}
       end
       @group.add(thr)
     end
@@ -137,6 +140,7 @@ module ZeevexCluster::Util::ThreadPool
       @group.list.dup.each do |thr|
         thr.join
       end
+      true
     end
 
     def stop
@@ -148,7 +152,20 @@ module ZeevexCluster::Util::ThreadPool
         end
 
         @started = false
+        @busy_count = 0
       end
+    end
+
+    def busy_count
+      @busy_count
+    end
+
+    def busy
+      false
+    end
+
+    def worker_count
+      @busy_count
     end
   end
 
