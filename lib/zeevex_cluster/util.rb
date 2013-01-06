@@ -3,7 +3,7 @@ module ZeevexCluster
     module All
       def self.included(base)
         base.class_eval do
-          include ZeevexCluster::Util::Hooks
+          include Hookem
           include ZeevexCluster::Util::Logging
         end
       end
@@ -13,4 +13,4 @@ end
 
 require 'zeevex_cluster/util/logging'
 require 'zeevex_cluster/util/event_loop'
-require 'zeevex_cluster/util/hooks'
+require 'hookem'

@@ -1,9 +1,10 @@
 require 'socket'
+require 'hookem'
 
 module ZeevexCluster
   class Base
     include ZeevexCluster::Util::Logging
-    include ZeevexCluster::Util::Hooks
+    include Hookem
 
     attr_accessor :nodename, :options
 

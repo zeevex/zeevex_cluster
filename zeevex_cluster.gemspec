@@ -26,6 +26,8 @@ Gem::Specification.new do |s|
   s.add_dependency 'countdownlatch', '~> 1.0.0'
   s.add_dependency 'atomic', '~> 1.0.0'
 
+  s.add_dependency 'hookem', '~> 0.0.1'
+
   ## other headius utils
   # s.add_dependency 'thread_safe'
 

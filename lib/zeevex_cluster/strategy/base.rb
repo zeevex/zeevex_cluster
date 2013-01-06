@@ -1,10 +1,12 @@
 require 'zeevex_cluster/strategy'
+require 'hookem'
+
 # require 'zeevex_threadsafe/thread_safer'
 
 module ZeevexCluster::Strategy
   class Base
     include ZeevexCluster::Util::Logging
-    include ZeevexCluster::Util::Hooks
+    include Hookem
     # include ZeevexThreadsafe::ThreadSafer
 
     def initialize(options = {})
