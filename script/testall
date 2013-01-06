@@ -1,0 +1,2 @@
+#!/bin/zsh
+rvm ree-1.8.7@zeevex_cluster,1.9.3-p327@zeevex_cluster do bundle exec rspec
