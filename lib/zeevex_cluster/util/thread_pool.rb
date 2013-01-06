@@ -47,6 +47,14 @@ module ZeevexCluster::Util::ThreadPool
     def backlog
       0
     end
+
+    protected
+
+    def _check_args(*args)
+      args = args.reject {|f| f.nil? || !f.respond_to?(:call) }
+      raise ArgumentError, "Must supply a callable or block" unless args.length == 1
+      args[0]
+    end
   end
   #
   # Use a single-threaded event loop to process jobs
@@ -55,7 +63,7 @@ module ZeevexCluster::Util::ThreadPool
     include Stubs
 
     def initialize(loop = nil)
-      @loop ||= ZeevexUtil::Util.EventLoop.new
+      @loop ||= ZeevexCluster::Util::EventLoop.new
       start
     end
 
@@ -68,7 +76,7 @@ module ZeevexCluster::Util::ThreadPool
     end
 
     def enqueue(callable = nil, &block)
-      @loop.enqueue callable, &block
+      @loop.enqueue _check_args(callable, block)
     end
 
     def flush
@@ -102,8 +110,9 @@ module ZeevexCluster::Util::ThreadPool
 
     def enqueue(callable = nil, &block)
       raise "Must be started" unless @started
+      callable = _check_args(callable, block)
       thr = Thread.new do
-        (callable || block).call
+        callable.call
       end
       thr.join
     end
@@ -124,9 +133,10 @@ module ZeevexCluster::Util::ThreadPool
     end
 
     def enqueue(runnable = nil, &block)
+      callable = _check_args(runnable, block)
       thr = Thread.new do
         @mutex.synchronize { @busy_count += 1}
-        (runnable || block).call
+        callable.call
         @mutex.synchronize { @busy_count -= 1}
       end
       @group.add(thr)
@@ -189,7 +199,7 @@ module ZeevexCluster::Util::ThreadPool
     end
 
     def enqueue(runnable = nil, &block)
-      @queue << (runnable || block)
+      @queue << _check_args(runnable, block)
     end
 
     def start
