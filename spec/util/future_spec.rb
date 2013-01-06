@@ -1,7 +1,11 @@
 require File.join(File.dirname(__FILE__), '../spec_helper')
 require 'zeevex_cluster/util/future.rb'
 require 'zeevex_cluster/util/event_loop.rb'
+require 'zeevex_cluster/util/thread_pool.rb'
 
+#
+# this test counts on a single-threaded worker pool
+#
 describe ZeevexCluster::Util::Future do
   clazz = ZeevexCluster::Util::Future
 
@@ -18,10 +22,12 @@ describe ZeevexCluster::Util::Future do
   end
 
   let :loop do
-    loop = ZeevexCluster::Util::EventLoop.new
+    loop = ZeevexCluster::Util::ThreadPool::FixedPool.new(1)
   end
 
   before :each do
+    queue
+    pause_queue
     loop.start
     ZeevexCluster::Util::Future.worker_pool = loop
   end
