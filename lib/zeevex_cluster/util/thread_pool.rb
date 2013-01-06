@@ -1,5 +1,6 @@
 require 'zeevex_cluster/util'
 require 'zeevex_cluster/util/event_loop'
+require 'countdownlatch'
 require 'thread'
 
 module ZeevexCluster::Util::ThreadPool
@@ -18,6 +19,26 @@ module ZeevexCluster::Util::ThreadPool
 
     def free_count
       (worker_count - busy_count)
+    end
+
+    #
+    # flush any queued but un-executed tasks
+    #
+    def flush
+      true
+    end
+
+    #
+    # Returns after all currently enqueued tasks complete - does not guarantee
+    # that tasks are not enqueued while waiting
+    #
+    def join
+      latch = CountDownLatch.new(1)
+      enqueue do
+        latch.countdown!
+      end
+      latch.wait
+      true
     end
 
     #
@@ -46,12 +67,13 @@ module ZeevexCluster::Util::ThreadPool
       @loop.stop
     end
 
-    def join
-      stop
-    end
-
     def enqueue(callable = nil, &block)
       @loop.enqueue callable, &block
+    end
+
+    def flush
+      @loop.flush
+      true
     end
   end
 
@@ -75,7 +97,7 @@ module ZeevexCluster::Util::ThreadPool
     end
 
     def join
-      stop
+      true
     end
 
     def enqueue(callable = nil, &block)
@@ -112,7 +134,7 @@ module ZeevexCluster::Util::ThreadPool
     end
 
     def join
-      @group.list.each do |thr|
+      @group.list.dup.each do |thr|
         thr.join
       end
     end
@@ -121,7 +143,7 @@ module ZeevexCluster::Util::ThreadPool
       @mutex.synchronize do
         return unless @started
 
-        @group.list.each do |thr|
+        @group.list.dup.each do |thr|
           thr.kill
         end
 
@@ -134,6 +156,8 @@ module ZeevexCluster::Util::ThreadPool
   # Use a fixed pool of N threads to process jobs
   #
   class FixedPool
+    include Stubs
+
     def initialize(count = -1)
       if count == -1
         count = ZeevexCluster::Util::ThreadPool.cpu_count * 2
@@ -162,9 +186,16 @@ module ZeevexCluster::Util::ThreadPool
             while !@stop_requested
               begin
                 work = @queue.pop
-                @mutex.synchronize { @busy_count += 1 }
+
+                # notify that this thread is stopping and wait for the signal to continue
+                if work.is_a?(HaltObject)
+                  work.halt!
+                  continue
+                end
+
+                _start_work
                 work.call
-                @mutex.synchronize { @busy_count -= 1 }
+                _end_work
               rescue Exception
                 ZeevexCluster.logger.error %{Exception caught in thread pool: #{$!.inspect}: #{$!.backtrace.join("\n")}}
               end
@@ -174,15 +205,6 @@ module ZeevexCluster::Util::ThreadPool
         end
 
         @started = true
-      end
-    end
-
-    def join
-      @mutex.synchronize do
-        raise "Joining will fail unless pool has been asked to stop" if @started
-        @group.each do |thr|
-          thr.join
-        end
       end
     end
 
@@ -223,6 +245,58 @@ module ZeevexCluster::Util::ThreadPool
     def backlog
       @queue.size
     end
+
+    # flush queued jobs
+    def flush
+      @queue.clear
+    end
+
+    #
+    # this is tricky as there may be one or more workers stuck in VERY long running jobs
+    # so what we do is:
+    #
+    # Insert a job that stops processing
+    # When it runs, we can be sure that all previous jobs have popped off the queue
+    # However, previous jobs may still be running
+    # So we have to ask each thread to pause until they've all paused
+    #
+    def join
+      halter = HaltObject.new(@count)
+
+      # ensure each thread gets a copy
+      @count.times { @queue << halter }
+
+      # wait until every thread has entered
+      halter.wait
+    end
+
+    class HaltObject
+      def initialize(count)
+        @count = count
+        @latch = CountDownLatch.new(count)
+      end
+
+      def halt!
+        # notify that we're now waiting
+        @latch.countdown!
+        @latch.wait
+      end
+
+      def wait
+        @latch.wait
+      end
+    end
+
+    protected
+
+    def _start_work
+      @mutex.synchronize { @busy_count += 1 }
+    end
+
+    def _end_work
+      @mutex.synchronize { @busy_count -= 1 }
+    end
+
   end
 
   #
