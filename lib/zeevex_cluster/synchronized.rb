@@ -10,7 +10,7 @@ require 'zeevex_proxy'
 class ZeevexCluster::Synchronized < ZeevexProxy::Base
   def initialize(obj)
     super
-    @mutex = Mutex.new
+    @mutex = ::Mutex.new
   end
 
   def _set_synchronized_object(val)
