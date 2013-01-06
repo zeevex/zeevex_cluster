@@ -59,6 +59,10 @@ module ZeevexCluster::Util
       @queue.clear
     end
 
+    def backlog
+      @queue.size
+    end
+
     def reset
       stop
       flush
