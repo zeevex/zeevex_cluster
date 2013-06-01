@@ -33,6 +33,9 @@ Goals:
   * memcached
     * implement queue-like structure for messaging (using append/prepend, CAS for reads)
     * Easy way to notify a node it should check for various conditions
+    * switch to dalli as client
+    * disable memcache-client's backoff feature (waits N seconds after
+      conn error before allowing next contact)
   * Moneto (ruby key/value store abstraction - needs CAS, though)
   * AR backend
   * MongoDB backend

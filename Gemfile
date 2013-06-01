@@ -7,9 +7,10 @@ group :development, :test do
   gem 'pry-nav'
   gem 'pry-buffers'
   gem 'pry-syntax-hacks'
-  gem 'pry-git'
+  gem 'pry-git', :platform => :mri
   gem 'jist'
   gem 'ruby18_source_location', :platform => :mri_18
+  gem 'mysql2', :platform => :mri
 end
 
 group :development, :test do
