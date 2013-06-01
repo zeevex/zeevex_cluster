@@ -187,7 +187,7 @@ module ZeevexCluster::Coordinator
     end
 
     def simple_cond(row)
-      slice_hash row, :keyname, :lock_version
+      slice_hash row, :namespace, :keyname, :lock_version
     end
 
     def make_comparison(trip)
@@ -198,6 +198,11 @@ module ZeevexCluster::Coordinator
                else raise 'Must have 1-3 arguments'
              end
       %{#{qcol trip[0]} #{trip[1]} #{qval trip[2]}}
+    end
+
+    def make_row_conditions(cond)
+      cond = {:namespace => @namespace}.merge(cond)
+      make_conditions(cond)
     end
 
     def make_conditions(cond)
@@ -256,11 +261,10 @@ module ZeevexCluster::Coordinator
     # note, unlike some of the do_* functions, returns a simple boolean for success
     #
     def do_update_row(quals, newattrvals, options = {})
-      quals[:keyname] or raise 'Must specify at least the key in an update'
-      conditions = 'WHERE ' + make_conditions(quals)
+      quals[:keyname] or raise 'Must specify at least the full key in an update'
+      conditions = 'WHERE ' + make_row_conditions(quals)
       newattrvals = {:updated_at => now}.merge(newattrvals) unless options[:skip_timestamps]
       newattrvals = {:expires_at => now + options[:expiration]}.merge(newattrvals) if options[:expiration]
-      newattrvals = newattrvals.merge(:namespace => @namespace)
       newattrvals.merge!({:lock_version => Literal.new('lock_version + 1')}) unless options[:skip_locking]
       updates = newattrvals.map do |(key, val)|
         "#{qcol key} = #{qval val}"
@@ -272,7 +276,7 @@ module ZeevexCluster::Coordinator
 
     def do_delete_row(quals, options = {})
       quals[:keyname] or raise 'Must specify at least the key in a delete'
-      conditions = 'WHERE ' + make_conditions(quals)
+      conditions = 'WHERE ' + make_row_conditions(quals)
       statement = %{DELETE from #@table #{conditions};}
       res = query statement
       res[:success] = res[:affected_rows] > 0
@@ -369,6 +373,18 @@ module ZeevexCluster::Coordinator
     #
     def now
       Time.now.utc
+    end
+
+    #
+    # unlike the base implementation, we don't fold the namespace into the key
+    # we leave that in a separate column
+    #
+    def to_key(key)
+      if @options[:to_key_proc]
+        @options[:to_key_proc].call(key)
+      else
+        key.to_s
+      end
     end
 
     #

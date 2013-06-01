@@ -1,12 +1,17 @@
 require 'zeevex_cluster/strategy'
+require 'hookem'
+
+# require 'zeevex_threadsafe/thread_safer'
 
 module ZeevexCluster::Strategy
   class Base
-    include ZeevexCluster::Util
-    include ZeevexCluster::Hooks
+    include ZeevexCluster::Util::Logging
+    include Hookem
+    # include ZeevexThreadsafe::ThreadSafer
 
     def initialize(options = {})
       @options       = options
+      @namespace     = options[:namespace]
       @cluster_name  = options[:cluster_name]
       @nodename      = options[:nodename] || Socket.gethostname
       @hooks         = {}
@@ -15,6 +20,8 @@ module ZeevexCluster::Strategy
       @state         = :stopped
 
       reset_state_vars
+
+      _initialize_hook_module
 
       if options[:hooks]
         add_hooks options[:hooks]
@@ -31,6 +38,14 @@ module ZeevexCluster::Strategy
 
     def state
       @state
+    end
+
+    def online?
+      @cluster_status == :online
+    end
+
+    def member?
+      online?
     end
 
     def started?
@@ -66,12 +81,12 @@ module ZeevexCluster::Strategy
     end
 
     def reset_state_vars
-
       @state = :stopped
       @my_cluster_status = :nonmember
       @master_status = :none
       @cluster_status = :offline
-
     end
+
+    # make_thread_safe :change_my_status, :change_master_status, :change_cluster_status
   end
 end

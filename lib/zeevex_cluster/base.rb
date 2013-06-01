@@ -1,9 +1,10 @@
 require 'socket'
+require 'hookem'
 
 module ZeevexCluster
   class Base
-    include ZeevexCluster::Util
-    include ZeevexCluster::Hooks
+    include ZeevexCluster::Util::Logging
+    include Hookem
 
     attr_accessor :nodename, :options
 
@@ -11,6 +12,9 @@ module ZeevexCluster
       @options = {:nodename => Socket.gethostname,
                   :autojoin => true}.merge(options)
       @logger  = @options[:logger]
+
+      _initialize_hook_module
+
       if @options[:hooks]
         add_hooks @options[:hooks]
       end

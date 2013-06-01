@@ -9,8 +9,8 @@ Gem::Specification.new do |s|
   s.authors     = ["Robert Sanders"]
   s.email       = ["robert@zeevex.com"]
   s.homepage    = "http://github.com/zeevex/zeevex_cluster"
-  s.summary     = %q{Use a shared service to reliably elect a master in a cluster of processes.}
-  s.description = %q{Using a shared data storage service like MySQL, Memcache, Redis etc., one process of many can be elected a cluster master.}
+  s.summary     = %q{Use a shared coordinator service to reliably elect a master in a cluster of processes.}
+  s.description = %q{Using a shared data storage service like MySQL, Memcache, Redis, or ZooKeeper, one process of many can be elected a cluster master. Notification of cluster membership changes is also provided.}
 
   s.rubyforge_project = "zeevex_cluster"
 
@@ -21,11 +21,23 @@ Gem::Specification.new do |s|
 
   s.add_dependency 'state_machine'
   s.add_dependency 'json'
+  s.add_dependency 'zeevex_proxy'
+  s.add_dependency 'zeevex_threadsafe'
+  s.add_dependency 'countdownlatch', '~> 1.0.0'
+  s.add_dependency 'atomic', '~> 1.0.0'
+
+  s.add_dependency 'hookem', '~> 0.0.1'
+
+  ## other headius utils
+  # s.add_dependency 'thread_safe'
 
   s.add_development_dependency 'rspec', '~> 2.9.0'
   s.add_development_dependency 'rake'
+  s.add_development_dependency 'pry'
 
   s.add_development_dependency 'memcache-client', '> 1.7.0'
   s.add_development_dependency 'redis'
-  s.add_development_dependency 'mysql2'
+
+  # s.add_development_dependency 'zk'
+  # s.add_development_dependency 'zk-group'
 end

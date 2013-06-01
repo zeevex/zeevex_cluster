@@ -10,9 +10,11 @@ module ZeevexCluster
   end
 
   def self.logger=(logger)
-    @logger = logger
+    @logger = ZeevexCluster::Synchronized(logger)
   end
 end
+
+require 'zeevex_cluster/synchronized'
 
 require 'logger'
 require 'zeevex_cluster/nil_logger'

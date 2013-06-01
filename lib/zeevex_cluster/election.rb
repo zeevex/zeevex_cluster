@@ -26,13 +26,14 @@ module ZeevexCluster
     end
 
     def master?
-      @strategy.am_i_master?
+      member? && @strategy.am_i_master?
     end
 
     ##
     ## Make this node the master, returning true if successful. No-op for now.
     ##
     def make_master!
+      return unless member?
       if @strategy.steal_election!
         true
       else
@@ -59,7 +60,7 @@ module ZeevexCluster
     ## Return name of master node
     ##
     def master
-      @strategy.master_node && @strategy.master_node[:nodename]
+      member? && @strategy.master_node && @strategy.master_node[:nodename]
     end
 
     def join
@@ -77,11 +78,11 @@ module ZeevexCluster
     end
 
     def member?
-      @member
+      @strategy.member?
     end
 
     def members
-      @strategy.respond_to?(:members) ? @strategy.members : [@nodename]
+      member? && (@strategy.respond_to?(:members) ? @strategy.members : [@nodename])
     end
 
     protected
