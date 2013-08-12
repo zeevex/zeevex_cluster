@@ -9,6 +9,8 @@ strategy_type = 'cas'
 
 backend_options = case ctype
                     when 'memcached' then {:server => '127.0.0.1', :port => 11212}
+                    when 'dalli'     then {:server => '127.0.0.1', :port => 11211}
+
                     when 'redis'     then {:server => '127.0.0.1', :port => 6379}
                     when 'mysql'     then {:server => '127.0.0.1', :port => 3306,
                                            :coordinator_options => {
