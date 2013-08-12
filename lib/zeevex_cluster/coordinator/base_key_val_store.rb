@@ -5,7 +5,6 @@ class ZeevexCluster::Coordinator::BaseKeyValStore
 
   def self.setup
     unless @setup
-      require 'memcache'
       require 'zeevex_cluster/serializer/json_hash'
       @setup = true
     end
