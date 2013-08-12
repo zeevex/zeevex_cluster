@@ -36,7 +36,9 @@ class ZeevexCluster::Serializer::JsonHash
   end
 
   def deserialize(str)
-    parsed = JSON.parse(str, :symbolize_names => true, :object_class => IndifferentHash)
+    parsed = JSON.parse(str, :symbolize_names => true, 
+                             :object_class => IndifferentHash,
+                             :create_additions => true)
     case parsed
       when Hash then untranslate_hash(parsed)
       else parsed
