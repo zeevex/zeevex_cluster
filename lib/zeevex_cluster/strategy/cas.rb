@@ -19,6 +19,7 @@ class ZeevexCluster::Strategy::Cas < ZeevexCluster::Strategy::Base
       @server = ZeevexCluster::Coordinator.create(coordinator_type,
                                                   {:server     => options[:server],
                                                    :port       => options[:port],
+                                                   :client     => options[:client],
                                                    :expiration => @stale_time * 4}.merge(options[:coordinator_options] || {}))
     end
     unless @server.is_a?(ZeevexCluster::Synchronized)
