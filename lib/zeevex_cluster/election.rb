@@ -25,6 +25,10 @@ module ZeevexCluster
       after_initialize
     end
 
+    def strategy
+      @strategy
+    end
+
     def master?
       member? && @strategy.am_i_master?
     end
@@ -60,7 +64,7 @@ module ZeevexCluster
     ## Return name of master node
     ##
     def master
-      member? && @strategy.master_node && @strategy.master_node[:nodename]
+      can_view? && @strategy.master_node && @strategy.master_node[:nodename]
     end
 
     def join
@@ -82,7 +86,21 @@ module ZeevexCluster
     end
 
     def members
-      member? && (@strategy.respond_to?(:members) ? @strategy.members : [@nodename])
+      can_view? && (@strategy.respond_to?(:members) ? @strategy.members : [@nodename])
+    end
+
+    def can_view?
+      member? || observing? || @strategy.respond_to?(:can_view?) ? @strategy.can_view? : false
+    end
+
+    def observing?
+      # TODO: make this smarter
+      @strategy.respond_to?(:observing?) ? @strategy.observing? : true
+    end
+
+    def observe
+      @strategy.observe
+      {:master => master, :members => members}
     end
 
     protected

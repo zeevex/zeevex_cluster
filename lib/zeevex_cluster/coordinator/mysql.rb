@@ -143,6 +143,7 @@ module ZeevexCluster::Coordinator
       row = do_get_first key
       return nil if row.nil?
 
+      binding.pry
       if !is_raw?(options)
         deserialize_value(row[:value])
       else

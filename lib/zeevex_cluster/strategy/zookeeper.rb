@@ -67,6 +67,19 @@ module ZeevexCluster::Strategy
       [@namespace, @cluster_name].reject {|x| x.nil? || x.empty? }.join(':')
     end
 
+    def observe
+      return true if @state == :started
+      raise NotImplementedError, "Can't observe zookeeper cluster yet"
+    end
+
+    def observing?
+      @state == :started
+    end
+
+    def can_view?
+      observing?
+    end
+
     protected
 
     def setup

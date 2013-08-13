@@ -39,8 +39,6 @@ class ZeevexCluster::Strategy::Cas < ZeevexCluster::Strategy::Base
     @current_master && @current_master[:nodename]
   end
 
-
-
   class StopException < StandardError; end
 
   def start
@@ -119,6 +117,22 @@ class ZeevexCluster::Strategy::Cas < ZeevexCluster::Strategy::Base
       members << v[:nodename] unless time_of(v[:timestamp]) < stale_point
     end
     members
+  end
+
+  def can_view?
+    true
+  end
+
+  def observing?
+    true
+  end
+
+  #
+  # grab a snapshot of the cluster
+  #
+  def observe
+    token = server.get(key)
+    @current_master = qualifies_for_master?(token) ? token : nil
   end
 
   protected
