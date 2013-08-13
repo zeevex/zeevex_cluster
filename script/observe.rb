@@ -31,6 +31,7 @@ $c = ZeevexCluster::Election.new :backend_options => backend_options,
                                  :strategy_type => strategy_type,
                                  :nodename => "#{Socket.gethostname}:#{`tty`.chomp}",
                                  :logger => Logger.new(STDOUT),
+                                 :autojoin => false,
                                  :hooks  => {:status_change => lambda {|who, news, olds, *rest|
                                                                        puts "MSC! #{news} #{olds}"} }
 

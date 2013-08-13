@@ -5,8 +5,7 @@ class ZeevexCluster::Coordinator::BaseKeyValStore
 
   def self.setup
     unless @setup
-      require 'memcache'
-      require 'zeevex_cluster/serializer/json_hash'
+      require 'zeevex_cluster/serializer/edn'
       @setup = true
     end
   end
@@ -27,7 +26,7 @@ class ZeevexCluster::Coordinator::BaseKeyValStore
 
     @logger     = options[:logger]
 
-    @serializer    = options[:serializer] || ZeevexCluster::Serializer::JsonHash.new
+    @serializer    = options[:serializer] || ZeevexCluster::Serializer::EDN.new
 
     @retries    = options.fetch(:retries,    20)
     @retry_wait = options.fetch(:retry_wait,  2)

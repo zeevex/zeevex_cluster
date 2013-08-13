@@ -7,21 +7,21 @@ module ZeevexCluster
     end
 
     module InstanceMethods
-      def to_json
+      def to_serialized
         serializer.serialize(self)
       end
 
       def serializer
-        @_serializer ||= ZeevexCluster::Serializer::JsonHash.new
+        @_serializer ||= ZeevexCluster::Serializer::EDN.new
       end
     end
 
     module ClassMethods
-      def from_json(string)
+      def from_serialized(string)
         serializer.deserialize(self)
       end
     end
   end
 end
 
-require 'zeevex_cluster/serializer/json_hash'
+require 'zeevex_cluster/serializer/edn'

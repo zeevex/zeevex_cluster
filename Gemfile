@@ -11,6 +11,7 @@ group :development, :test do
   gem 'jist'
   gem 'ruby18_source_location', :platform => :mri_18
   gem 'mysql2', :platform => :mri
+  gem 'dalli'
 end
 
 group :development, :test do

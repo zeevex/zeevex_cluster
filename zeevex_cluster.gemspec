@@ -28,6 +28,8 @@ Gem::Specification.new do |s|
 
   s.add_dependency 'hookem', '~> 0.0.1'
 
+  s.add_dependency 'edn'
+
   ## other headius utils
   # s.add_dependency 'thread_safe'
 

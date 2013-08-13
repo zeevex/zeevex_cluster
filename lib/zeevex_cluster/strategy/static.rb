@@ -51,5 +51,18 @@ module ZeevexCluster::Strategy
       true
     end
 
+    def observing?
+      true
+    end
+
+    def can_view?
+      true
+    end
+
+    def observe
+      true
+    end
+
+
   end
 end

@@ -19,6 +19,7 @@ class ZeevexCluster::Strategy::Cas < ZeevexCluster::Strategy::Base
       @server = ZeevexCluster::Coordinator.create(coordinator_type,
                                                   {:server     => options[:server],
                                                    :port       => options[:port],
+                                                   :client     => options[:client],
                                                    :expiration => @stale_time * 4}.merge(options[:coordinator_options] || {}))
     end
     unless @server.is_a?(ZeevexCluster::Synchronized)
@@ -37,8 +38,6 @@ class ZeevexCluster::Strategy::Cas < ZeevexCluster::Strategy::Base
   def master_nodename
     @current_master && @current_master[:nodename]
   end
-
-
 
   class StopException < StandardError; end
 
@@ -115,9 +114,25 @@ class ZeevexCluster::Strategy::Cas < ZeevexCluster::Strategy::Base
     list = server.get(key('members')) || make_member_list
     members = []
     list[:members].values.each do |v|
-      members << v[:nodename] unless v[:timestamp].utc < stale_point
+      members << v[:nodename] unless time_of(v[:timestamp]) < stale_point
     end
     members
+  end
+
+  def can_view?
+    true
+  end
+
+  def observing?
+    true
+  end
+
+  #
+  # grab a snapshot of the cluster
+  #
+  def observe
+    token = server.get(key)
+    @current_master = qualifies_for_master?(token) ? token : nil
   end
 
   protected
@@ -184,7 +199,7 @@ class ZeevexCluster::Strategy::Cas < ZeevexCluster::Strategy::Base
 
   def got_lock(token)
     unless @locked_at
-      @locked_at     = token[:timestamp]
+      @locked_at     = time_of(token[:timestamp])
       token          = my_token
       run_hook :election_won
     end
@@ -237,8 +252,8 @@ class ZeevexCluster::Strategy::Cas < ZeevexCluster::Strategy::Base
   def qualifies_for_master?(token)
     now = time_now()
     ! token_invalid?(token) and
-        token[:timestamp] > (now - @stale_time) and
-        token[:locked_at] <= (now - INAUGURATION_UPDATE_DELAY * @update_period)
+        time_of(token[:timestamp]) > (now - @stale_time) and
+        time_of(token[:locked_at]) <= (now - INAUGURATION_UPDATE_DELAY * @update_period)
   end
 
   def time_now
@@ -249,7 +264,7 @@ class ZeevexCluster::Strategy::Cas < ZeevexCluster::Strategy::Base
     now = time_now
     !token || !token.is_a?(Hash) || !token[:timestamp] ||
         ! token[:locked_at] || ! token[:nodename] ||
-        token[:timestamp].utc < (now - @stale_time)
+        time_of(token[:timestamp]) < (now - @stale_time)
   end
 
   def resigned?
@@ -342,7 +357,7 @@ class ZeevexCluster::Strategy::Cas < ZeevexCluster::Strategy::Base
       res = server.cas(memberlist_key) do |hash|
         hash[:members] ||= {}
         hash[:members].keys.each do |key|
-          hash[:members].delete(key) if hash[:members][key][:timestamp] < stale_point
+          hash[:members].delete(key) if time_of(hash[:members][key][:timestamp]) < stale_point
         end
         hash[:members][@nodename] = me
         hash
@@ -389,7 +404,7 @@ class ZeevexCluster::Strategy::Cas < ZeevexCluster::Strategy::Base
   # has the master gone without updating suspiciously long?
   #
   def master_suspect?(token)
-    time_now - token[:timestamp] > SUSPECT_MISSED_UPDATE_COUNT * @update_period
+    time_now - time_of(token[:timestamp]) > SUSPECT_MISSED_UPDATE_COUNT * @update_period
   end
 
   def reset_state_vars
@@ -400,4 +415,18 @@ class ZeevexCluster::Strategy::Cas < ZeevexCluster::Strategy::Base
     @current_master = nil
     @thread = nil
   end
+
+  def time_of(timelike)
+    res = case timelike
+            when DateTime then timelike.to_time
+            when Time     then timelike
+            when String   then time_of(DateTime.parse(timelike))
+            when Integer  then Time.at(timelike)
+            when nil      then nil
+            else
+              raise ArgumentError, "Cannot parse #{timelike.inspect} of class #{timelike.class} to a time"
+          end
+    res.respond_to?(:utc) ? res.utc : res
+  end
+
 end
