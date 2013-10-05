@@ -133,6 +133,7 @@ class ZeevexCluster::Strategy::Cas < ZeevexCluster::Strategy::Base
   def observe
     token = server.get(key)
     @current_master = qualifies_for_master?(token) ? token : nil
+    {:master => @current_master, :members => members}
   end
 
   protected
