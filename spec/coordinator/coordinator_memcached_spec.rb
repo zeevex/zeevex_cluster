@@ -35,15 +35,15 @@ describe ZeevexCluster::Coordinator::Memcached do
   context 'basic methods' do
     subject { clazz.new(default_options.merge(:client => mockery)) }
     it 'handles add' do
-      mockery.should_receive(:add).with('foo:bar', '{"$primitive":12}', 30, true).and_return(STORED)
+      mockery.should_receive(:add).with('foo:bar', '12', 30, true).and_return(STORED)
       subject.add('bar', 12).should == true
     end
     it 'handles set' do
-      mockery.should_receive(:set).with('foo:bar', '{"$primitive":13}', 30, true).and_return(STORED)
+      mockery.should_receive(:set).with('foo:bar', '13', 30, true).and_return(STORED)
       subject.set('bar', 13).should == true
     end
     it 'handles get' do
-      mockery.should_receive(:get).with('foo:bar', true).and_return('{"$primitive":14}')
+      mockery.should_receive(:get).with('foo:bar', true).and_return('14')
       subject.get('bar').should == 14
     end
   end
@@ -65,7 +65,7 @@ describe ZeevexCluster::Coordinator::Memcached do
     it 'calls block with current value and receive new value' do
       mockery.should_receive(:cas) do |key, expiration, raw, &block|
         block.should_not be_nil
-        block.call('{"$primitive":"yeeha"}').should == '{"$primitive":"yeehayeeha"}'
+        block.call('"yeeha"').should == '"yeehayeeha"'
         STORED
       end
       subject.cas('bar', :expiration => 45) do |val|
@@ -77,7 +77,7 @@ describe ZeevexCluster::Coordinator::Memcached do
 
     it 'allows block to abort with no change to value' do
       mockery.stub(:cas) do |*args, &block|
-        block.call '{"$primitive":7}'
+        block.call '7'
       end
       subject.cas('bar') do |val|
         raise ZeevexCluster::Coordinator::DontChange
