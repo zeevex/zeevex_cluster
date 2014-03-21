@@ -285,7 +285,7 @@ module ZeevexCluster::Coordinator
 
     def clear_expired_rows
       statement = %{DELETE FROM #@table WHERE #{qcol 'expires_at'} < #{qnow} and #{qcol 'namespace'} = #{qval @namespace};}
-      @client.query statement
+      @client.query statement, _mysql_query_options
       true
     rescue ::Mysql2::Error
       log_exception($!, statement)
@@ -294,13 +294,18 @@ module ZeevexCluster::Coordinator
       logger.error %{Unhandled error in query: #{$!.inspect}\nstatement=[#{statement}]\n#{$!.backtrace.join("\n")}}
     end
 
+    def _mysql_query_options
+      {as: :hash, symbolize_keys: true}
+    end
+
     #
     # chokepoint for *most* queries issued to MySQL, except the one from `clear_expired_rows` as we call it.
     #
     # returns a hash containing values returned from mysql2 API
     #
     def query(statement, options = {})
-      unless options[:ignore_expiration]
+      options = _mysql_query_options.merge(options)
+      unless options.delete(:ignore_expiration)
         clear_expired_rows
       end
       logger.debug "[#{statement}]"
@@ -313,7 +318,6 @@ module ZeevexCluster::Coordinator
       logger.error %{Unhandled error in query: #{$!.inspect}\nstatement=[#{statement}]\n#{$!.backtrace.join("\n")}}
       raise
     end
-
     #
     # extract a hash with a subset of keys
     #
