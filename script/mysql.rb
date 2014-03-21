@@ -2,7 +2,6 @@
 $: << File.join(File.dirname(__FILE__), "../lib")
 require 'pry'
 require 'zeevex_cluster'
-require 'zeevex_cluster/primitives'
 require 'zeevex_cluster/coordinator'
 require 'zeevex_cluster/coordinator/mysql'
 
@@ -23,3 +22,6 @@ $c = ZeevexCluster::Coordinator::Mysql.new :server => 'localhost',
                                            :password => 'zclusterp',
                                            :nodename => 'repl',
                                            :expiration => 120
+
+require 'pry'
+binding.pry
