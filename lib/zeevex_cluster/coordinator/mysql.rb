@@ -248,10 +248,15 @@ module ZeevexCluster::Coordinator
 
       # see http://dev.mysql.com/doc/refman/5.0/en/insert-on-duplicate.html for WTF affected_rows
       # overloading
-      res[:success] = [1,2].include?(res[:affected_rows])
+      #
+      # See bug http://bugs.mysql.com/bug.php?id=46675 for case when the affected_rows can be 3.
+      # this appears to be the case in mysql server 5.1 when doing an update on the matched row.
+      # so we just treat 3 the same as 2.
+
+      res[:success] = [1,2,3].include?(res[:affected_rows])
       res[:upsert_type] = case res[:affected_rows]
                             when 1 then :insert
-                            when 2 then :update
+                            when 2,3 then :update
                             else :none
                           end
       res
